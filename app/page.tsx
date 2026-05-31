@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getUserState, landingRoute } from '@/lib/userState'
 
 export default function Home() {
   const router = useRouter()
@@ -43,23 +44,14 @@ async function verifyOtp() {
     return
   }
 
-  // Route by role: staff go to the staff dashboard, everyone else to onboarding.
+  // Smart routing: inspect the user's state and send them to the right place.
   const userId = data.session?.user.id
-  let role: string | null = null
-  if (userId) {
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-    role = profile?.role ?? null
-  }
-
-  if (role === 'staff') {
-    router.push('/staff')
-  } else {
+  if (!userId) {
     router.push('/onboarding')
+    return
   }
+  const state = await getUserState(userId)
+  router.push(landingRoute(state))
   setLoading(false)
 }
 
