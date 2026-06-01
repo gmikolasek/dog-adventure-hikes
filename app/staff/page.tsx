@@ -3,13 +3,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { getClients, getWeeklyMetrics, type ClientRow } from '@/lib/adminData'
+import { exportClientsToExcel } from '@/lib/excelExport'
 
 export default function StaffDashboard() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
   const [staffName, setStaffName] = useState('')
-  const [pendingCount, setPendingCount] = useState(0)
-  const [activeClients, setActiveClients] = useState(0)
+  const [clients, setClients] = useState<ClientRow[]>([])
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -22,23 +24,10 @@ export default function StaffDashboard() {
         .select('name, role')
         .eq('id', session.user.id)
         .maybeSingle()
-
       if (profile?.role !== 'staff') { router.push('/onboarding'); return }
       setStaffName(profile.name ?? '')
 
-      const { count: pending } = await supabase
-        .from('dogs')
-        .select('id', { count: 'exact', head: true })
-        .eq('approval_status', 'pending')
-      setPendingCount(pending ?? 0)
-
-      const { count: active } = await supabase
-        .from('users')
-        .select('id', { count: 'exact', head: true })
-        .eq('role', 'client')
-        .not('approved_at', 'is', null)
-      setActiveClients(active ?? 0)
-
+      setClients(await getClients())
       setReady(true)
     }
     load()
@@ -49,6 +38,15 @@ export default function StaffDashboard() {
     router.push('/')
   }
 
+  async function handleExport() {
+    setExporting(true)
+    try {
+      await exportClientsToExcel(clients)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if (!ready) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center px-6">
@@ -57,10 +55,15 @@ export default function StaffDashboard() {
     )
   }
 
+  const metrics = getWeeklyMetrics()
+  const pendingDogs = clients.flatMap(c => c.dogs).filter(d => d.approval_status === 'pending').length
+  const activeClients = clients.filter(c => c.status === 'active').length
+
   return (
     <main className="min-h-screen bg-white px-6 py-10">
       <div className="w-full max-w-sm mx-auto">
 
+        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100">
@@ -73,44 +76,137 @@ export default function StaffDashboard() {
               <p className="text-gray-500 text-xs">Dog Adventure Hikes · Staff</p>
             </div>
           </div>
-          <button
-            onClick={signOut}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
+          <button onClick={signOut} className="text-xs text-gray-500 hover:text-gray-700">
             Sign out
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div className="rounded-xl border border-gray-200 p-4">
-            <p className="text-3xl font-semibold text-gray-900">{pendingCount}</p>
-            <p className="text-xs text-gray-500 mt-1">Pending approvals</p>
-          </div>
-          <div className="rounded-xl border border-gray-200 p-4">
-            <p className="text-3xl font-semibold text-gray-900">{activeClients}</p>
-            <p className="text-xs text-gray-500 mt-1">Active clients</p>
-          </div>
+        {/* Weekly revenue */}
+        <div className="rounded-2xl bg-green-600 text-white p-5 mb-3">
+          <p className="text-xs text-green-100">This week&apos;s revenue</p>
+          <p className="text-3xl font-semibold mt-1">₮{metrics.revenueThisWeek.toLocaleString()}</p>
+          <p className="text-xs text-green-100 mt-1">{metrics.hikesThisWeek} hikes · ₮50,000 each</p>
         </div>
 
-        <button
-          onClick={() => router.push('/staff/approvals')}
-          className="w-full flex items-center justify-between rounded-xl border-2 border-green-500 bg-green-50 px-4 py-4 text-left hover:bg-green-100 transition-colors"
-        >
-          <span>
-            <span className="block text-sm font-semibold text-gray-900">New dog approvals</span>
-            <span className="block text-xs text-gray-500 mt-0.5">Review, approve and assign zones</span>
-          </span>
-          <span className="flex items-center gap-2">
-            {pendingCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-green-600 text-white text-xs font-semibold">
-                {pendingCount}
-              </span>
-            )}
-            <span className="text-gray-400">→</span>
-          </span>
-        </button>
+        {/* Stat grid */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Stat value={metrics.bookingsCount} label="Bookings this week" />
+          <Stat value={activeClients} label="Active clients" />
+          <Stat value={pendingDogs} label="Pending approvals" />
+          <Stat value={clients.length} label="Total clients" />
+        </div>
+
+        {/* Quick actions */}
+        <div className="space-y-2 mb-8">
+          <ActionRow
+            title="New dog approvals"
+            subtitle="Review, approve and assign zones"
+            badge={pendingDogs}
+            onClick={() => router.push('/staff/approvals')}
+          />
+          <ActionRow
+            title="Client management"
+            subtitle="View profiles, change zones"
+            onClick={() => router.push('/staff/clients')}
+          />
+          <ActionRow
+            title="Exceptions log"
+            subtitle="Cancellations, no-shows, holding fees"
+            onClick={() => router.push('/staff/exceptions')}
+          />
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="w-full flex items-center justify-between rounded-xl border border-gray-200 px-4 py-4 text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <span>
+              <span className="block text-sm font-semibold text-gray-900">Export to Excel</span>
+              <span className="block text-xs text-gray-500 mt-0.5">Download all client &amp; booking data</span>
+            </span>
+            <span className="text-gray-400">{exporting ? '…' : '⬇'}</span>
+          </button>
+        </div>
+
+        {/* Client list */}
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Clients</h2>
+          {clients.length === 0 ? (
+            <p className="text-sm text-gray-400">No clients yet.</p>
+          ) : (
+            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+              {clients.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => router.push(`/staff/clients/${c.id}`)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-gray-900 truncate">
+                      {c.name ?? 'Unnamed'}
+                    </span>
+                    <span className="block text-xs text-gray-500 truncate">
+                      {c.dogs.map(d => d.name).join(', ') || 'No dog'}
+                      {c.zoneName ? ` · ${c.zoneName}` : ''}
+                    </span>
+                    <span className="block text-[11px] text-gray-400 mt-0.5">
+                      Last booking: {c.lastBooking ?? '—'}
+                    </span>
+                  </span>
+                  <ClientStatusBadge status={c.status} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
       </div>
     </main>
+  )
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="rounded-xl border border-gray-200 p-4">
+      <p className="text-3xl font-semibold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-500 mt-1">{label}</p>
+    </div>
+  )
+}
+
+function ActionRow({ title, subtitle, badge, onClick }: {
+  title: string; subtitle: string; badge?: number; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between rounded-xl border border-gray-200 px-4 py-4 text-left hover:bg-gray-50 transition-colors"
+    >
+      <span>
+        <span className="block text-sm font-semibold text-gray-900">{title}</span>
+        <span className="block text-xs text-gray-500 mt-0.5">{subtitle}</span>
+      </span>
+      <span className="flex items-center gap-2">
+        {badge !== undefined && badge > 0 && (
+          <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-green-600 text-white text-xs font-semibold">
+            {badge}
+          </span>
+        )}
+        <span className="text-gray-400">→</span>
+      </span>
+    </button>
+  )
+}
+
+export function ClientStatusBadge({ status }: { status: 'active' | 'pending' | 'incomplete' }) {
+  const map = {
+    active: { label: 'Active', cls: 'bg-green-100 text-green-700' },
+    pending: { label: 'Pending', cls: 'bg-amber-100 text-amber-700' },
+    incomplete: { label: 'Incomplete', cls: 'bg-gray-100 text-gray-500' },
+  }
+  const s = map[status]
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${s.cls}`}>
+      {s.label}
+    </span>
   )
 }
