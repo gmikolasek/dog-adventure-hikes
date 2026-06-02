@@ -1,6 +1,43 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { getUserState } from '@/lib/userState'
+
 export default function Pending() {
+  const router = useRouter()
+
+  useEffect(() => {
+    let active = true
+
+    async function check() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!active) return
+      if (!session) { router.push('/'); return }
+
+      const state = await getUserState(session.user.id)
+      if (!active) return
+
+      // Approved (with or without conditions) AND placed in a zone → activated.
+      const dogApproved = state.dogs.some(
+        d => d.approval_status === 'approved' || d.approval_status === 'approved_with_conditions'
+      )
+      if (dogApproved && state.profile?.zone_id) {
+        router.push('/client/home')
+      }
+    }
+
+    check() // check immediately, then poll every 10s
+    const interval = setInterval(check, 10000)
+    return () => { active = false; clearInterval(interval) }
+  }, [router])
+
+  async function signOut() {
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
   return (
     <main className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm text-center">
@@ -43,6 +80,13 @@ export default function Pending() {
             <span className="text-sm text-gray-400">Book your first hike</span>
           </div>
         </div>
+
+        <button
+          onClick={signOut}
+          className="mt-6 text-sm text-gray-500 hover:text-gray-700"
+        >
+          Sign out
+        </button>
       </div>
     </main>
   )
