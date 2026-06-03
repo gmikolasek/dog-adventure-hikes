@@ -105,6 +105,11 @@ export default function StaffDashboard() {
             onClick={() => router.push('/staff/approvals')}
           />
           <ActionRow
+            title="Calendar"
+            subtitle="Open or block hiking days"
+            onClick={() => router.push('/staff/calendar')}
+          />
+          <ActionRow
             title="Client management"
             subtitle="View profiles, change zones"
             onClick={() => router.push('/staff/clients')}

@@ -4,8 +4,17 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getUserState, landingRoute, type Dog, type Profile } from '@/lib/userState'
+import { formatShort, todayIso } from '@/lib/booking'
 
 type Zone = { name: string; description: string | null }
+type Upcoming = {
+  id: string
+  date: string
+  destination: string | null
+  dogName: string
+  pickup: string | null
+  dropoff: string | null
+}
 
 export default function ClientHome() {
   const router = useRouter()
@@ -13,6 +22,7 @@ export default function ClientHome() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [dogs, setDogs] = useState<Dog[]>([])
   const [zone, setZone] = useState<Zone | null>(null)
+  const [upcoming, setUpcoming] = useState<Upcoming[]>([])
 
   useEffect(() => {
     async function load() {
@@ -34,6 +44,39 @@ export default function ClientHome() {
           .eq('id', state.profile.zone_id)
           .maybeSingle()
         setZone(zoneRow as Zone | null)
+      }
+
+      // Real upcoming bookings: confirmed, on a hike day from today onward.
+      const { data: bookingRows } = await supabase
+        .from('bookings')
+        .select('id, dog_id, hike_day_id, pickup_method, dropoff_method')
+        .eq('owner_id', session.user.id)
+        .eq('status', 'confirmed')
+      const bookings = bookingRows ?? []
+      if (bookings.length) {
+        const dayIds = [...new Set(bookings.map(b => b.hike_day_id))]
+        const { data: dayRows } = await supabase
+          .from('hike_days')
+          .select('id, date, destination_override')
+          .in('id', dayIds)
+          .gte('date', todayIso())
+        const dayById: Record<string, { date: string; destination_override: string | null }> = {}
+        for (const d of dayRows ?? []) dayById[d.id] = d
+        const dogNameById: Record<string, string> = {}
+        for (const dog of state.dogs) dogNameById[dog.id] = dog.name
+
+        const list: Upcoming[] = bookings
+          .filter(b => dayById[b.hike_day_id]) // drops past days
+          .map(b => ({
+            id: b.id,
+            date: dayById[b.hike_day_id].date,
+            destination: dayById[b.hike_day_id].destination_override,
+            dogName: dogNameById[b.dog_id] ?? 'Your dog',
+            pickup: b.pickup_method,
+            dropoff: b.dropoff_method,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date))
+        setUpcoming(list)
       }
 
       setReady(true)
@@ -142,13 +185,36 @@ export default function ClientHome() {
         {/* Upcoming bookings */}
         <div>
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Upcoming hikes</h2>
-          <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 mb-3">
-              <span className="text-2xl">🗓️</span>
+          {upcoming.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 mb-3">
+                <span className="text-2xl">🗓️</span>
+              </div>
+              <p className="text-sm text-gray-500">No upcoming hikes yet.</p>
+              <p className="text-xs text-gray-400 mt-1">Book your first adventure above.</p>
             </div>
-            <p className="text-sm text-gray-500">No upcoming hikes yet.</p>
-            <p className="text-xs text-gray-400 mt-1">Book your first adventure above.</p>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              {upcoming.map(u => (
+                <div key={u.id} className="rounded-2xl border border-gray-200 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-900">{formatShort(u.date)}</p>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
+                      Confirmed
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    🐕 {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
+                  </p>
+                  {(u.pickup || u.dropoff) && (
+                    <p className="text-[11px] text-gray-400 mt-1 capitalize">
+                      {u.pickup} pickup · {u.dropoff} drop-off
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

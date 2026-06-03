@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getUserState, landingRoute, type Dog } from '@/lib/userState'
-
-type HikeDay = { iso: string; weekday: string; label: string; spots: number }
-type PickupMethod = 'curbside' | 'home'
+import {
+  getBookedCounts, spotsLeft, formatShort, todayIso,
+  type HikeDay, type Method,
+} from '@/lib/booking'
 
 const BOOKABLE = new Set(['approved', 'approved_with_conditions'])
 
@@ -17,9 +18,11 @@ export default function BookHike() {
   const [zoneName, setZoneName] = useState<string | null>(null)
 
   const [hikeDays, setHikeDays] = useState<HikeDay[]>([])
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [selectedDogs, setSelectedDogs] = useState<string[]>([])
-  const [pickup, setPickup] = useState<PickupMethod | null>(null)
+  const [pickup, setPickup] = useState<Method | null>(null)
+  const [dropoff, setDropoff] = useState<Method | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -34,36 +37,45 @@ export default function BookHike() {
       setDogs(bookable)
       if (bookable.length === 1) setSelectedDogs([bookable[0].id])
 
-      if (state.profile?.zone_id) {
+      const zoneId = state.profile?.zone_id
+      if (zoneId) {
         const { data: zoneRow } = await supabase
-          .from('zones').select('name').eq('id', state.profile.zone_id).maybeSingle()
+          .from('zones').select('name').eq('id', zoneId).maybeSingle()
         setZoneName((zoneRow as { name: string } | null)?.name ?? null)
+
+        // Open days from today forward that include the client's zone.
+        const { data: dayRows } = await supabase
+          .from('hike_days')
+          .select('*')
+          .eq('status', 'open')
+          .gte('date', todayIso())
+          .contains('zones', [zoneId])
+          .order('date', { ascending: true })
+        setHikeDays((dayRows ?? []) as HikeDay[])
+        setCounts(await getBookedCounts())
       }
 
-      // Mock hike days: next several Wed/Sat (placeholder until staff calendar exists).
-      setHikeDays(nextHikeDays(6))
       setReady(true)
     }
     load()
   }, [router])
 
   function toggleDog(id: string) {
-    setSelectedDogs(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
+    setSelectedDogs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
   function proceed() {
     if (!canProceed) return
     const params = new URLSearchParams({
-      date: selectedDate!,
+      day: selectedDay!,
       dogs: selectedDogs.join(','),
       pickup: pickup!,
+      dropoff: dropoff!,
     })
     router.push(`/client/book/payment?${params.toString()}`)
   }
 
-  const canProceed = !!selectedDate && selectedDogs.length > 0 && !!pickup
+  const canProceed = !!selectedDay && selectedDogs.length > 0 && !!pickup && !!dropoff
 
   if (!ready) {
     return (
@@ -77,10 +89,7 @@ export default function BookHike() {
     <main className="min-h-screen bg-white px-6 py-10">
       <div className="w-full max-w-sm mx-auto">
 
-        <button
-          onClick={() => router.push('/client/home')}
-          className="text-sm text-gray-500 hover:text-gray-700 mb-6"
-        >
+        <button onClick={() => router.push('/client/home')} className="text-sm text-gray-500 hover:text-gray-700 mb-6">
           ← Home
         </button>
 
@@ -93,38 +102,52 @@ export default function BookHike() {
 
         {/* 1. Date */}
         <p className="text-sm font-medium text-gray-700 mb-3">1. Pick a day</p>
-        <div className="space-y-2 mb-7">
-          {hikeDays.map(day => {
-            const active = selectedDate === day.iso
-            const full = day.spots === 0
-            return (
-              <button
-                key={day.iso}
-                type="button"
-                disabled={full}
-                onClick={() => setSelectedDate(day.iso)}
-                className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition-colors disabled:opacity-40 ${
-                  active ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
-                }`}
-              >
-                <span>
-                  <span className="block text-sm font-medium text-gray-900">{day.weekday}</span>
-                  <span className="block text-xs text-gray-500">{day.label}</span>
-                </span>
-                <span className={`text-xs ${full ? 'text-red-500' : 'text-gray-400'}`}>
-                  {full ? 'Full' : `${day.spots} spots`}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        {hikeDays.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center mb-7">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 mb-3">
+              <span className="text-2xl">🗓️</span>
+            </div>
+            <p className="text-sm text-gray-500">No hikes scheduled in your zone yet.</p>
+            <p className="text-xs text-gray-400 mt-1">Check back soon — new days open weekly.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 mb-7">
+            {hikeDays.map(day => {
+              const left = spotsLeft(day, counts)
+              const full = left === 0 && !day.allow_over_capacity
+              const active = selectedDay === day.id
+              return (
+                <button
+                  key={day.id}
+                  type="button"
+                  disabled={full}
+                  onClick={() => setSelectedDay(day.id)}
+                  className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition-colors disabled:opacity-40 ${
+                    active ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-gray-900">{formatShort(day.date)}</span>
+                    {day.destination_override && (
+                      <span className="block text-xs text-gray-500 truncate">{day.destination_override}</span>
+                    )}
+                    {day.client_note && (
+                      <span className="block text-[11px] text-amber-700 truncate">ⓘ {day.client_note}</span>
+                    )}
+                  </span>
+                  <span className={`text-xs flex-shrink-0 ml-2 ${full ? 'text-red-500' : 'text-gray-400'}`}>
+                    {full ? 'Full' : `${left} spot${left !== 1 ? 's' : ''}`}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* 2. Dogs */}
         <p className="text-sm font-medium text-gray-700 mb-3">2. Which dog{dogs.length > 1 ? 's' : ''}?</p>
         {dogs.length === 0 ? (
-          <p className="text-sm text-gray-400 mb-7">
-            No approved dogs to book yet.
-          </p>
+          <p className="text-sm text-gray-400 mb-7">No approved dogs to book yet.</p>
         ) : (
           <div className="space-y-2 mb-7">
             {dogs.map(dog => {
@@ -155,19 +178,20 @@ export default function BookHike() {
 
         {/* 3. Pickup */}
         <p className="text-sm font-medium text-gray-700 mb-3">3. Pickup method</p>
+        <div className="space-y-2 mb-7">
+          <MethodOption active={pickup === 'curbside'} onClick={() => setPickup('curbside')}
+            title="Curbside" desc="You meet the van at the kerb." />
+          <MethodOption active={pickup === 'home'} onClick={() => setPickup('home')}
+            title="Home pickup" desc="The van comes to your door — someone must be present." />
+        </div>
+
+        {/* 4. Dropoff */}
+        <p className="text-sm font-medium text-gray-700 mb-3">4. Drop-off method</p>
         <div className="space-y-2 mb-8">
-          <PickupOption
-            active={pickup === 'curbside'}
-            onClick={() => setPickup('curbside')}
-            title="Curbside"
-            desc="You meet the van at the kerb."
-          />
-          <PickupOption
-            active={pickup === 'home'}
-            onClick={() => setPickup('home')}
-            title="Home pickup"
-            desc="The van comes to your door — someone must be present."
-          />
+          <MethodOption active={dropoff === 'curbside'} onClick={() => setDropoff('curbside')}
+            title="Curbside" desc="Meet the van at the kerb on return." />
+          <MethodOption active={dropoff === 'home'} onClick={() => setDropoff('home')}
+            title="Home drop-off" desc="The van returns your dog to your door." />
         </div>
 
         <button
@@ -183,7 +207,7 @@ export default function BookHike() {
   )
 }
 
-function PickupOption({ active, onClick, title, desc }: {
+function MethodOption({ active, onClick, title, desc }: {
   active: boolean; onClick: () => void; title: string; desc: string
 }) {
   return (
@@ -198,28 +222,4 @@ function PickupOption({ active, onClick, title, desc }: {
       <span className="block text-xs text-gray-500 mt-0.5">{desc}</span>
     </button>
   )
-}
-
-// Placeholder schedule: the next `count` Wednesdays and Saturdays.
-function nextHikeDays(count: number): HikeDay[] {
-  const out: HikeDay[] = []
-  const targetDows = [3, 6] // Wed, Sat
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + 1) // start tomorrow
-  let i = 0
-  while (out.length < count) {
-    if (targetDows.includes(d.getDay())) {
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      out.push({
-        iso,
-        weekday: d.toLocaleDateString('en-US', { weekday: 'long' }),
-        label: d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
-        spots: Math.max(0, 8 - ((i * 3) % 9)), // mock availability
-      })
-      i++
-    }
-    d.setDate(d.getDate() + 1)
-  }
-  return out
 }

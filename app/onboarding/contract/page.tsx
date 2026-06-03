@@ -13,7 +13,7 @@ const sections = [
   {
     id: 'payment',
     title: '2. Booking and Payment',
-    body: 'The hike fee is ₮50,000 per dog per session. Payment is made in full at the time of booking. No booking is confirmed until payment is received. Trail Pack: 4 hikes purchased together save ₮25,000 — credits are added to your account immediately. Outstanding holding fees are added to your next booking total and must be cleared before payment can proceed.'
+    body: 'The hike fee is ₮50,000 per dog per session. Payment is made in full at the time of booking. No booking is confirmed until payment is received. Trail Pack: 4 hikes purchased together save ₮20,000 — credits are added to your account immediately. Outstanding holding fees are added to your next booking total and must be cleared before payment can proceed.'
   },
   {
     id: 'pickup',

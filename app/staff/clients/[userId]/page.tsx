@@ -42,6 +42,7 @@ export default function ClientDetail() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [credits, setCredits] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -70,6 +71,17 @@ export default function ClientDetail() {
       const { data: z } = await supabase
         .from('zones').select('id, name, description').order('name', { ascending: true })
       setZones((z ?? []) as Zone[])
+
+      const nowIso = new Date().toISOString()
+      const { data: creditRows } = await supabase
+        .from('trail_pack_credits')
+        .select('credits_remaining, expires_at')
+        .eq('owner_id', userId)
+        .gt('credits_remaining', 0)
+      const validCredits = (creditRows ?? [])
+        .filter(r => !r.expires_at || r.expires_at > nowIso)
+        .reduce((s, r) => s + (r.credits_remaining ?? 0), 0)
+      setCredits(validCredits)
 
       setReady(true)
     }
@@ -147,6 +159,7 @@ export default function ClientDetail() {
           <Field label="Pickup address" value={profile.address} />
           <Field label="Language" value={profile.language === 'mn' ? 'Mongolian' : profile.language === 'en' ? 'English' : profile.language} />
           <Field label="Training interest" value={profile.training_interest ? 'Yes' : 'No'} />
+          <Field label="Trail Pack credits" value={`${credits} credit${credits !== 1 ? 's' : ''}`} />
           <Field label="Member since" value={profile.created_at ? formatDate(profile.created_at) : null} />
         </div>
 
