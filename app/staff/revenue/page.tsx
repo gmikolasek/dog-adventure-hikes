@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getWeeklyRevenue, type WeeklyRevenueData } from '@/lib/adminData'
+import { getWeeklyRevenue, PRICE_PER_HIKE, type WeeklyRevenueData } from '@/lib/adminData'
 import { formatShort } from '@/lib/booking'
 
 export default function RevenuePage() {
@@ -77,25 +77,38 @@ export default function RevenuePage() {
             <p className="text-sm text-gray-400">No confirmed bookings this week.</p>
           ) : (
             <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {d.bookings.map(b => (
-                <div key={b.id} className="px-4 py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900">{b.dogName}</p>
-                      <p className="text-xs text-gray-500">{b.ownerName ?? '—'}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {formatShort(b.hikeDate)}
-                        {b.pickupMethod && (
-                          <span className="ml-2 text-gray-400">· {b.pickupMethod}</span>
+              {d.bookings.map(b => {
+                const isTrailPack = b.amountCharged > PRICE_PER_HIKE
+                const isCredit = b.creditUsed > 0
+                return (
+                  <div key={b.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900">{b.dogName}</p>
+                        <p className="text-xs text-gray-500">{b.ownerName ?? '—'}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {formatShort(b.hikeDate)}
+                          {b.pickupMethod && (
+                            <span className="ml-2">· {b.pickupMethod}</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        {isCredit ? (
+                          <span className="text-xs font-medium text-green-600">Credit used</span>
+                        ) : isTrailPack ? (
+                          <>
+                            <p className="text-sm font-semibold text-gray-900">₮{b.amountCharged.toLocaleString()}</p>
+                            <p className="text-[11px] text-amber-600 mt-0.5">Trail Pack · 4 hikes</p>
+                          </>
+                        ) : (
+                          <p className="text-sm font-semibold text-gray-900">₮{b.amountCharged.toLocaleString()}</p>
                         )}
-                      </p>
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900 flex-shrink-0">
-                      ₮{b.amountCharged.toLocaleString()}
-                    </p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>

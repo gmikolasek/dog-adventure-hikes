@@ -46,23 +46,56 @@ export async function getClients(): Promise<ClientRow[]> {
   const users = userRows ?? []
   const ids = users.map(u => u.id)
 
+  // Fetch dogs, zones, and confirmed bookings in parallel.
+  const [dogResult, zoneResult, bookingResult] = await Promise.all([
+    ids.length
+      ? supabase
+          .from('dogs')
+          .select('id, owner_id, name, breed, approval_status, created_at')
+          .in('owner_id', ids)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: [] as Array<{ id: string; owner_id: string; name: string; breed: string | null; approval_status: string | null; created_at: string }> }),
+    supabase.from('zones').select('id, name'),
+    ids.length
+      ? supabase
+          .from('bookings')
+          .select('owner_id, hike_day_id')
+          .eq('status', 'confirmed')
+          .in('owner_id', ids)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] as Array<{ owner_id: string; hike_day_id: string }> }),
+  ])
+
   const dogsByOwner: Record<string, ClientDog[]> = {}
-  if (ids.length) {
-    const { data: dogRows } = await supabase
-      .from('dogs')
-      .select('id, owner_id, name, breed, approval_status, created_at')
-      .in('owner_id', ids)
-      .order('created_at', { ascending: true })
-    for (const d of dogRows ?? []) {
-      ;(dogsByOwner[d.owner_id] ??= []).push({
-        id: d.id, name: d.name, breed: d.breed, approval_status: d.approval_status,
-      })
-    }
+  for (const d of (dogResult.data ?? [])) {
+    ;(dogsByOwner[d.owner_id] ??= []).push({
+      id: d.id, name: d.name, breed: d.breed, approval_status: d.approval_status,
+    })
   }
 
-  const { data: zoneRows } = await supabase.from('zones').select('id, name')
   const zoneName: Record<string, string> = {}
-  for (const z of zoneRows ?? []) zoneName[z.id] = z.name
+  for (const z of (zoneResult.data ?? [])) zoneName[z.id] = z.name
+
+  // Most recent confirmed booking per owner (rows already desc by created_at).
+  const latestHikeDayByOwner: Record<string, string> = {}
+  for (const b of (bookingResult.data ?? [])) {
+    if (!latestHikeDayByOwner[b.owner_id]) latestHikeDayByOwner[b.owner_id] = b.hike_day_id
+  }
+
+  // Resolve the distinct hike_day_ids → dates.
+  const lastBookingByOwner: Record<string, string> = {}
+  const hikeDayIds = [...new Set(Object.values(latestHikeDayByOwner))]
+  if (hikeDayIds.length) {
+    const { data: hikeDayRows } = await supabase
+      .from('hike_days')
+      .select('id, date')
+      .in('id', hikeDayIds)
+    const dateById: Record<string, string> = {}
+    for (const h of (hikeDayRows ?? [])) dateById[h.id] = h.date
+    for (const [ownerId, hikeDayId] of Object.entries(latestHikeDayByOwner)) {
+      if (dateById[hikeDayId]) lastBookingByOwner[ownerId] = dateById[hikeDayId]
+    }
+  }
 
   return users.map(u => {
     const dogs = dogsByOwner[u.id] ?? []
@@ -77,7 +110,7 @@ export async function getClients(): Promise<ClientRow[]> {
       zoneName: u.zone_id ? (zoneName[u.zone_id] ?? null) : null,
       dogs,
       status: clientStatus(u.approved_at, u.zone_id, dogs.length),
-      lastBooking: null,
+      lastBooking: lastBookingByOwner[u.id] ?? null,
     }
   })
 }
@@ -292,6 +325,7 @@ export type WeeklyBookingRow = {
   ownerName: string | null
   dogName: string
   amountCharged: number
+  creditUsed: number
   hikeDate: string
   pickupMethod: 'curbside' | 'home' | null
 }
@@ -354,7 +388,7 @@ export async function getWeeklyRevenue(): Promise<WeeklyRevenueData> {
     dayIds.length
       ? supabase
           .from('bookings')
-          .select('id, dog_id, owner_id, hike_day_id, amount_charged, pickup_method')
+          .select('id, dog_id, owner_id, hike_day_id, amount_charged, credit_used, pickup_method')
           .eq('status', 'confirmed')
           .in('hike_day_id', dayIds)
       : Promise.resolve({ data: [] }),
@@ -372,7 +406,7 @@ export async function getWeeklyRevenue(): Promise<WeeklyRevenueData> {
   ])
 
   const confirmedBookings = (confirmedResult.data ?? []) as Array<{
-    id: string; dog_id: string; owner_id: string; hike_day_id: string; amount_charged: number; pickup_method: string | null
+    id: string; dog_id: string; owner_id: string; hike_day_id: string; amount_charged: number; credit_used: number; pickup_method: string | null
   }>
   const exceptionBookings = (exceptionResult.data ?? []) as Array<{
     id: string; dog_id: string; owner_id: string; hike_day_id: string; status: string
@@ -417,6 +451,7 @@ export async function getWeeklyRevenue(): Promise<WeeklyRevenueData> {
       ownerName: ownerById[b.owner_id] ?? null,
       dogName: dogById[b.dog_id] ?? 'Unknown',
       amountCharged: b.amount_charged ?? 0,
+      creditUsed: b.credit_used ?? 0,
       hikeDate: dateById[b.hike_day_id] ?? '',
       pickupMethod: b.pickup_method as 'curbside' | 'home' | null,
     }))
