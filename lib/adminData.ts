@@ -242,3 +242,38 @@ export async function getRunForDate(date: string): Promise<RunDay | null> {
   const runs = await buildRunDays(days, (bRows ?? []) as Parameters<typeof buildRunDays>[1])
   return runs[0] ?? { date: dayRow.date, hikeDayId: dayRow.id, destination: dayRow.destination_override, bookings: [] }
 }
+
+// Lightweight summaries for the /staff/runs listing page.
+export type RunSummary = {
+  date: string
+  hikeDayId: string
+  destination: string | null
+  dogCount: number
+}
+
+export async function getUpcomingRunSummaries(): Promise<RunSummary[]> {
+  const today = isoDate(new Date())
+  const { data: dayRows } = await supabase
+    .from('hike_days')
+    .select('id, date, destination_override, status')
+    .gte('date', today)
+    .in('status', ['open', 'full'])
+    .order('date', { ascending: true })
+    .limit(20)
+
+  const days = (dayRows ?? []) as Array<{ id: string; date: string; destination_override: string | null; status: string }>
+  if (!days.length) return []
+
+  const { data: countRows } = await supabase.rpc('hike_day_booked_counts')
+  const countById: Record<string, number> = {}
+  for (const r of (countRows ?? []) as { hike_day_id: string; confirmed: number }[]) {
+    countById[r.hike_day_id] = r.confirmed
+  }
+
+  return days.map(d => ({
+    date: d.date,
+    hikeDayId: d.id,
+    destination: d.destination_override,
+    dogCount: countById[d.id] ?? 0,
+  }))
+}

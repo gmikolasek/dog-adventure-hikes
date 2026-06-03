@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getClients, getWeeklyMetrics, getUpcomingRuns, type ClientRow, type WeeklyMetrics, type RunDay, type RunBooking } from '@/lib/adminData'
+import { getClients, getWeeklyMetrics, getUpcomingRuns, type ClientRow, type WeeklyMetrics, type RunDay } from '@/lib/adminData'
 import { exportClientsToExcel } from '@/lib/excelExport'
 import { formatShort } from '@/lib/booking'
 
@@ -66,6 +66,7 @@ export default function StaffDashboard() {
 
   const pendingDogs = clients.flatMap(c => c.dogs).filter(d => d.approval_status === 'pending').length
   const activeClients = clients.filter(c => c.status === 'active').length
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <main className="min-h-screen bg-white px-6 py-10">
@@ -89,45 +90,55 @@ export default function StaffDashboard() {
           </button>
         </div>
 
-        {/* Weekly revenue */}
-        <div className="rounded-2xl bg-green-600 text-white p-5 mb-3">
+        {/* Weekly revenue hero — taps to runs overview */}
+        <button
+          onClick={() => router.push('/staff/runs')}
+          className="w-full rounded-2xl bg-green-600 text-white p-5 mb-3 text-left hover:bg-green-700 transition-colors"
+        >
           <p className="text-xs text-green-100">This week&apos;s revenue</p>
           <p className="text-3xl font-semibold mt-1">₮{metrics.revenueThisWeek.toLocaleString()}</p>
-          <p className="text-xs text-green-100 mt-1">{metrics.hikesThisWeek} hike{metrics.hikesThisWeek !== 1 ? 's' : ''} · ₮50,000 each</p>
-        </div>
+          <p className="text-xs text-green-100 mt-1">
+            {metrics.hikesThisWeek} hike{metrics.hikesThisWeek !== 1 ? 's' : ''} · ₮50,000 each
+          </p>
+        </button>
 
         {/* Stat grid */}
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <Stat value={metrics.bookingsCount} label="Bookings this week" />
-          <Stat value={activeClients} label="Active clients" />
-          <Stat value={pendingDogs} label="Pending approvals" />
-          <Stat value={clients.length} label="Total clients" />
+          <Stat value={metrics.bookingsCount} label="Bookings this week" onClick={() => router.push('/staff/runs')} />
+          <Stat value={activeClients} label="Active clients" onClick={() => router.push('/staff/clients')} />
+          <Stat value={pendingDogs} label="Pending approvals" onClick={() => router.push('/staff/approvals')} />
+          <Stat value={clients.length} label="Total clients" onClick={() => router.push('/staff/clients')} />
         </div>
 
-        {/* Today's run / upcoming runs */}
+        {/* Upcoming runs — compact summary cards */}
         {upcomingRuns.length > 0 && (
-          <div className="mb-8 space-y-5">
-            {upcomingRuns.map((run, i) => {
-              const isToday = run.date === new Date().toISOString().slice(0, 10)
-              const label = isToday ? "Today's run" : `Next run · ${formatShort(run.date)}`
-              return (
-                <div key={run.date}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-sm font-semibold text-gray-900">{label}</h2>
-                    <button
-                      onClick={() => router.push(`/staff/runs/${run.date}`)}
-                      className="text-xs text-green-600 hover:text-green-700"
-                    >
-                      Full view →
-                    </button>
-                  </div>
-                  {run.destination && (
-                    <p className="text-xs text-gray-500 mb-2">{run.destination}</p>
-                  )}
-                  <RunSection run={run} />
-                </div>
-              )
-            })}
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Upcoming runs</h2>
+            <div className="space-y-2">
+              {upcomingRuns.map(run => {
+                const isToday = run.date === today
+                const dateLabel = isToday ? 'Today' : formatShort(run.date)
+                const dogCount = run.bookings.length
+                return (
+                  <button
+                    key={run.date}
+                    onClick={() => router.push(`/staff/runs/${run.date}`)}
+                    className="w-full flex items-center justify-between rounded-xl border border-gray-200 px-4 py-4 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <span>
+                      <span className="block text-sm font-semibold text-gray-900">{dateLabel}</span>
+                      {run.destination && (
+                        <span className="block text-xs text-gray-500 mt-0.5">{run.destination}</span>
+                      )}
+                      <span className="block text-xs text-gray-400 mt-0.5">
+                        {dogCount} dog{dogCount !== 1 ? 's' : ''} confirmed
+                      </span>
+                    </span>
+                    <span className="text-xs text-green-600 flex-shrink-0 ml-3">Full view →</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -167,94 +178,20 @@ export default function StaffDashboard() {
           </button>
         </div>
 
-        {/* Client list */}
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Clients</h2>
-          {clients.length === 0 ? (
-            <p className="text-sm text-gray-400">No clients yet.</p>
-          ) : (
-            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {clients.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => router.push(`/staff/clients/${c.id}`)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-gray-900 truncate">
-                      {c.name ?? 'Unnamed'}
-                    </span>
-                    <span className="block text-xs text-gray-500 truncate">
-                      {c.dogs.map(d => d.name).join(', ') || 'No dog'}
-                      {c.zoneName ? ` · ${c.zoneName}` : ''}
-                    </span>
-                    <span className="block text-[11px] text-gray-400 mt-0.5">
-                      Last booking: {c.lastBooking ?? '—'}
-                    </span>
-                  </span>
-                  <ClientStatusBadge status={c.status} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
       </div>
     </main>
   )
 }
 
-function RunSection({ run }: { run: RunDay }) {
+function Stat({ value, label, onClick }: { value: number; label: string; onClick: () => void }) {
   return (
-    <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-      {run.bookings.map(b => (
-        <RunRow key={b.id} booking={b} />
-      ))}
-    </div>
-  )
-}
-
-function RunRow({ booking: b }: { booking: RunBooking }) {
-  return (
-    <div className="px-4 py-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900">{b.dogName}</p>
-          <p className="text-xs text-gray-600">{b.ownerName ?? '—'}</p>
-          {b.ownerAddress && (
-            <p className="text-xs text-gray-400 truncate mt-0.5">{b.ownerAddress}</p>
-          )}
-          {b.zoneName && (
-            <p className="text-[11px] text-gray-400 mt-0.5">{b.zoneName}</p>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <MethodBadge method={b.pickupMethod} prefix="Pick" />
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
-            confirmed
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MethodBadge({ method, prefix }: { method: 'curbside' | 'home' | null; prefix: string }) {
-  if (!method) return null
-  const cls = method === 'home' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${cls}`}>
-      {prefix}: {method}
-    </span>
-  )
-}
-
-function Stat({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="rounded-xl border border-gray-200 p-4">
+    <button
+      onClick={onClick}
+      className="rounded-xl border border-gray-200 p-4 text-left hover:bg-gray-50 transition-colors w-full"
+    >
       <p className="text-3xl font-semibold text-gray-900">{value}</p>
       <p className="text-xs text-gray-500 mt-1">{label}</p>
-    </div>
+    </button>
   )
 }
 

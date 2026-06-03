@@ -52,7 +52,7 @@ export default function RunDetailPage() {
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <button
-            onClick={() => router.push('/staff')}
+            onClick={() => router.push('/staff/runs')}
             className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 text-lg leading-none"
           >
             ←
@@ -78,6 +78,16 @@ export default function RunDetailPage() {
               </p>
               <p className="text-xs text-gray-400">Sorted by zone</p>
             </div>
+
+            {/* Map placeholder */}
+            <button
+              disabled
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 mb-4 text-sm text-gray-400 cursor-not-allowed"
+            >
+              <span>📍</span>
+              <span>View pickup map</span>
+              <span className="text-[11px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded ml-1">coming soon</span>
+            </button>
 
             {/* Booking list */}
             <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
