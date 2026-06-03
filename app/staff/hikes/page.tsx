@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUpcomingRunSummaries, type RunSummary } from '@/lib/adminData'
+import { getUpcomingHikeSummaries, type HikeSummary } from '@/lib/adminData'
 import { formatFull } from '@/lib/booking'
 
-export default function RunsPage() {
+export default function HikesPage() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
-  const [runs, setRuns] = useState<RunSummary[]>([])
+  const [hikes, setHikes] = useState<HikeSummary[]>([])
 
   useEffect(() => {
     async function load() {
@@ -23,7 +23,7 @@ export default function RunsPage() {
         .maybeSingle()
       if (profile?.role !== 'staff') { router.push('/onboarding'); return }
 
-      setRuns(await getUpcomingRunSummaries())
+      setHikes(await getUpcomingHikeSummaries())
       setReady(true)
     }
     load()
@@ -54,24 +54,24 @@ export default function RunsPage() {
           <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-100">
             <span className="text-xl">🗓</span>
           </div>
-          <h1 className="text-lg font-semibold text-gray-900">Upcoming runs</h1>
+          <h1 className="text-lg font-semibold text-gray-900">Upcoming hikes</h1>
         </div>
 
-        {runs.length === 0 ? (
+        {hikes.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 px-6 py-10 text-center">
             <p className="text-sm text-gray-400">No upcoming hike days scheduled.</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-            {runs.map(run => {
-              const isToday = run.date === today
+            {hikes.map(hike => {
+              const isToday = hike.date === today
               const formattedDate = (() => {
-                try { return formatFull(run.date) } catch { return run.date }
+                try { return formatFull(hike.date) } catch { return hike.date }
               })()
               return (
                 <button
-                  key={run.date}
-                  onClick={() => router.push(`/staff/runs/${run.date}`)}
+                  key={hike.date}
+                  onClick={() => router.push(`/staff/hikes/${hike.date}`)}
                   className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-gray-50 transition-colors"
                 >
                   <span className="min-w-0">
@@ -83,11 +83,11 @@ export default function RunsPage() {
                         </span>
                       )}
                     </span>
-                    {run.destination && (
-                      <span className="block text-xs text-gray-500 mt-0.5 truncate">{run.destination}</span>
+                    {hike.destination && (
+                      <span className="block text-xs text-gray-500 mt-0.5 truncate">{hike.destination}</span>
                     )}
                     <span className="block text-xs text-gray-400 mt-0.5">
-                      {run.dogCount} dog{run.dogCount !== 1 ? 's' : ''} confirmed
+                      {hike.dogCount} dog{hike.dogCount !== 1 ? 's' : ''} confirmed
                     </span>
                   </span>
                   <span className="text-gray-400 flex-shrink-0 ml-3">→</span>

@@ -3,16 +3,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
-import { getRunForDate, type RunDay, type RunBooking } from '@/lib/adminData'
+import { getHikeForDate, type HikeDetail, type HikeBooking } from '@/lib/adminData'
 import { formatFull } from '@/lib/booking'
 
-export default function RunDetailPage() {
+export default function HikeDetailPage() {
   const router = useRouter()
   const params = useParams()
   const date = params.date as string
 
   const [ready, setReady] = useState(false)
-  const [run, setRun] = useState<RunDay | null>(null)
+  const [hike, setHike] = useState<HikeDetail | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -26,8 +26,8 @@ export default function RunDetailPage() {
         .maybeSingle()
       if (profile?.role !== 'staff') { router.push('/onboarding'); return }
 
-      const runData = await getRunForDate(date)
-      setRun(runData)
+      const hikeData = await getHikeForDate(date)
+      setHike(hikeData)
       setReady(true)
     }
     load()
@@ -52,20 +52,20 @@ export default function RunDetailPage() {
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <button
-            onClick={() => router.push('/staff/runs')}
+            onClick={() => router.push('/staff/hikes')}
             className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 text-lg leading-none"
           >
             ←
           </button>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900 leading-tight">Run · {formattedDate}</h1>
-            {run?.destination && (
-              <p className="text-xs text-gray-500 mt-0.5">{run.destination}</p>
+            <h1 className="text-lg font-semibold text-gray-900 leading-tight">Hike · {formattedDate}</h1>
+            {hike?.destination && (
+              <p className="text-xs text-gray-500 mt-0.5">{hike.destination}</p>
             )}
           </div>
         </div>
 
-        {!run || run.bookings.length === 0 ? (
+        {!hike || hike.bookings.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 px-6 py-10 text-center">
             <p className="text-sm text-gray-400">No confirmed bookings for this date.</p>
           </div>
@@ -74,7 +74,7 @@ export default function RunDetailPage() {
             {/* Summary bar */}
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-gray-500">
-                {run.bookings.length} dog{run.bookings.length !== 1 ? 's' : ''} confirmed
+                {hike.bookings.length} dog{hike.bookings.length !== 1 ? 's' : ''} confirmed
               </p>
               <p className="text-xs text-gray-400">Sorted by zone</p>
             </div>
@@ -91,7 +91,7 @@ export default function RunDetailPage() {
 
             {/* Booking list */}
             <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {run.bookings.map((b, i) => (
+              {hike.bookings.map((b, i) => (
                 <BookingDetailRow key={b.id} booking={b} index={i + 1} />
               ))}
             </div>
@@ -103,20 +103,16 @@ export default function RunDetailPage() {
   )
 }
 
-function BookingDetailRow({ booking: b, index }: { booking: RunBooking; index: number }) {
+function BookingDetailRow({ booking: b, index }: { booking: HikeBooking; index: number }) {
   return (
     <div className="px-4 py-4">
       <div className="flex items-start gap-3">
-        {/* Stop number */}
         <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-xs font-semibold flex-shrink-0 mt-0.5">
           {index}
         </div>
 
         <div className="flex-1 min-w-0">
-          {/* Dog */}
           <p className="text-sm font-semibold text-gray-900">{b.dogName}</p>
-
-          {/* Owner */}
           <p className="text-xs text-gray-700 mt-0.5">{b.ownerName ?? '—'}</p>
           {b.ownerPhone && (
             <p className="text-xs text-gray-500">{b.ownerPhone}</p>
@@ -124,13 +120,10 @@ function BookingDetailRow({ booking: b, index }: { booking: RunBooking; index: n
           {b.ownerAddress && (
             <p className="text-xs text-gray-500 mt-0.5">{b.ownerAddress}</p>
           )}
-
-          {/* Zone */}
           {b.zoneName && (
             <p className="text-[11px] text-gray-400 mt-1">{b.zoneName}</p>
           )}
 
-          {/* Methods */}
           <div className="flex flex-wrap gap-1.5 mt-2">
             {b.pickupMethod && (
               <MethodChip label="Pickup" method={b.pickupMethod} />

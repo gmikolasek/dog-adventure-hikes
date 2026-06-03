@@ -21,7 +21,7 @@ export type ClientRow = {
   zoneName: string | null
   dogs: ClientDog[]
   status: ClientStatus
-  lastBooking: string | null // always null until the bookings table exists (Phase 4)
+  lastBooking: string | null
 }
 
 export function clientStatus(approvedAt: string | null, zoneId: string | null, dogCount: number): ClientStatus {
@@ -36,7 +36,6 @@ export const STATUS_LABEL: Record<ClientStatus, string> = {
   incomplete: 'Incomplete',
 }
 
-// Fetch every client composed with their dogs and assigned zone.
 export async function getClients(): Promise<ClientRow[]> {
   const { data: userRows } = await supabase
     .from('users')
@@ -47,7 +46,6 @@ export async function getClients(): Promise<ClientRow[]> {
   const users = userRows ?? []
   const ids = users.map(u => u.id)
 
-  // Dogs for these clients.
   const dogsByOwner: Record<string, ClientDog[]> = {}
   if (ids.length) {
     const { data: dogRows } = await supabase
@@ -62,7 +60,6 @@ export async function getClients(): Promise<ClientRow[]> {
     }
   }
 
-  // Zone names.
   const { data: zoneRows } = await supabase.from('zones').select('id, name')
   const zoneName: Record<string, string> = {}
   for (const z of zoneRows ?? []) zoneName[z.id] = z.name
@@ -124,9 +121,9 @@ export async function getWeeklyMetrics(): Promise<WeeklyMetrics> {
   return { hikesThisWeek, revenueThisWeek, bookingsCount }
 }
 
-// ---- Run data (operational view) -------------------------------------------
+// ---- Hike operational view --------------------------------------------------
 
-export type RunBooking = {
+export type HikeBooking = {
   id: string
   dogId: string
   dogName: string
@@ -140,17 +137,27 @@ export type RunBooking = {
   zoneName: string | null
 }
 
-export type RunDay = {
+export type HikeDetail = {
   date: string
   hikeDayId: string
   destination: string | null
-  bookings: RunBooking[]
+  bookings: HikeBooking[]
 }
 
-async function buildRunDays(
+type RawBookingRow = {
+  id: string
+  dog_id: string
+  owner_id: string
+  hike_day_id: string
+  pickup_method: string | null
+  dropoff_method: string | null
+  status: string
+}
+
+async function buildHikeDetails(
   days: Array<{ id: string; date: string; destination_override: string | null }>,
-  rawBookings: Array<{ id: string; dog_id: string; owner_id: string; hike_day_id: string; pickup_method: string | null; dropoff_method: string | null; status: string }>,
-): Promise<RunDay[]> {
+  rawBookings: RawBookingRow[],
+): Promise<HikeDetail[]> {
   if (!rawBookings.length) return []
 
   const dogIds = [...new Set(rawBookings.map(b => b.dog_id))]
@@ -171,13 +178,13 @@ async function buildRunDays(
   const zoneNameById: Record<string, string> = {}
   for (const z of (zoneRows ?? [])) zoneNameById[z.id] = z.name
 
-  const byDay: Record<string, typeof rawBookings> = {}
+  const byDay: Record<string, RawBookingRow[]> = {}
   for (const b of rawBookings) { (byDay[b.hike_day_id] ??= []).push(b) }
 
   return days
     .filter(d => (byDay[d.id] ?? []).length > 0)
     .map(day => {
-      const bookings: RunBooking[] = (byDay[day.id] ?? []).map(b => {
+      const bookings: HikeBooking[] = (byDay[day.id] ?? []).map(b => {
         const owner = ownerById[b.owner_id]
         const zoneId = owner?.zone_id ?? null
         return {
@@ -199,7 +206,7 @@ async function buildRunDays(
 }
 
 // Next N hike days (from today) that have at least one confirmed booking.
-export async function getUpcomingRuns(limit = 2): Promise<RunDay[]> {
+export async function getUpcomingHikes(limit = 2): Promise<HikeDetail[]> {
   const today = isoDate(new Date())
 
   const { data: dayRows } = await supabase
@@ -218,12 +225,12 @@ export async function getUpcomingRuns(limit = 2): Promise<RunDay[]> {
     .eq('status', 'confirmed')
     .in('hike_day_id', days.map(d => d.id))
 
-  const allRuns = await buildRunDays(days, (bRows ?? []) as Parameters<typeof buildRunDays>[1])
-  return allRuns.slice(0, limit)
+  const allHikes = await buildHikeDetails(days, (bRows ?? []) as RawBookingRow[])
+  return allHikes.slice(0, limit)
 }
 
 // All confirmed bookings for a specific date (for the detail page).
-export async function getRunForDate(date: string): Promise<RunDay | null> {
+export async function getHikeForDate(date: string): Promise<HikeDetail | null> {
   const { data: dayRow } = await supabase
     .from('hike_days')
     .select('id, date, destination_override')
@@ -239,19 +246,19 @@ export async function getRunForDate(date: string): Promise<RunDay | null> {
     .eq('status', 'confirmed')
 
   const days = [{ id: dayRow.id, date: dayRow.date, destination_override: dayRow.destination_override }]
-  const runs = await buildRunDays(days, (bRows ?? []) as Parameters<typeof buildRunDays>[1])
-  return runs[0] ?? { date: dayRow.date, hikeDayId: dayRow.id, destination: dayRow.destination_override, bookings: [] }
+  const hikes = await buildHikeDetails(days, (bRows ?? []) as RawBookingRow[])
+  return hikes[0] ?? { date: dayRow.date, hikeDayId: dayRow.id, destination: dayRow.destination_override, bookings: [] }
 }
 
-// Lightweight summaries for the /staff/runs listing page.
-export type RunSummary = {
+// Lightweight summaries for the /staff/hikes listing page.
+export type HikeSummary = {
   date: string
   hikeDayId: string
   destination: string | null
   dogCount: number
 }
 
-export async function getUpcomingRunSummaries(): Promise<RunSummary[]> {
+export async function getUpcomingHikeSummaries(): Promise<HikeSummary[]> {
   const today = isoDate(new Date())
   const { data: dayRows } = await supabase
     .from('hike_days')
@@ -276,4 +283,163 @@ export async function getUpcomingRunSummaries(): Promise<RunSummary[]> {
     destination: d.destination_override,
     dogCount: countById[d.id] ?? 0,
   }))
+}
+
+// ---- Weekly revenue detail --------------------------------------------------
+
+export type WeeklyBookingRow = {
+  id: string
+  ownerName: string | null
+  dogName: string
+  amountCharged: number
+  hikeDate: string
+  pickupMethod: 'curbside' | 'home' | null
+}
+
+export type TrailPackHolder = {
+  id: string
+  ownerName: string | null
+  creditsRemaining: number
+  expiresAt: string | null
+}
+
+export type WeeklyException = {
+  id: string
+  ownerName: string | null
+  dogName: string
+  status: 'cancelled' | 'no_show'
+  hikeDate: string
+}
+
+export type WeeklyRevenueData = {
+  totalRevenue: number
+  weekMon: string
+  weekSun: string
+  bookings: WeeklyBookingRow[]
+  trailPackHolders: TrailPackHolder[]
+  exceptions: WeeklyException[]
+}
+
+export async function getWeeklyRevenue(): Promise<WeeklyRevenueData> {
+  const now = new Date()
+  const mon = mondayOf(now)
+  const sun = new Date(mon)
+  sun.setDate(mon.getDate() + 6)
+  const monIso = isoDate(mon)
+  const sunIso = isoDate(sun)
+
+  // Get hike day IDs for this week
+  const { data: dayRows } = await supabase
+    .from('hike_days')
+    .select('id, date')
+    .gte('date', monIso)
+    .lte('date', sunIso)
+
+  const days = (dayRows ?? []) as { id: string; date: string }[]
+  const dayIds = days.map(d => d.id)
+  const dateById: Record<string, string> = {}
+  for (const d of days) dateById[d.id] = d.date
+
+  const empty: WeeklyRevenueData = {
+    totalRevenue: 0,
+    weekMon: monIso,
+    weekSun: sunIso,
+    bookings: [],
+    trailPackHolders: [],
+    exceptions: [],
+  }
+
+  // Fetch confirmed + exception bookings for this week, and trail pack credits — in parallel
+  const [confirmedResult, exceptionResult, creditsResult] = await Promise.all([
+    dayIds.length
+      ? supabase
+          .from('bookings')
+          .select('id, dog_id, owner_id, hike_day_id, amount_charged, pickup_method')
+          .eq('status', 'confirmed')
+          .in('hike_day_id', dayIds)
+      : Promise.resolve({ data: [] }),
+    dayIds.length
+      ? supabase
+          .from('bookings')
+          .select('id, dog_id, owner_id, hike_day_id, status')
+          .in('status', ['cancelled', 'no_show'])
+          .in('hike_day_id', dayIds)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from('trail_pack_credits')
+      .select('id, owner_id, credits_remaining, expires_at')
+      .gt('credits_remaining', 0),
+  ])
+
+  const confirmedBookings = (confirmedResult.data ?? []) as Array<{
+    id: string; dog_id: string; owner_id: string; hike_day_id: string; amount_charged: number; pickup_method: string | null
+  }>
+  const exceptionBookings = (exceptionResult.data ?? []) as Array<{
+    id: string; dog_id: string; owner_id: string; hike_day_id: string; status: string
+  }>
+  const creditRows = (creditsResult.data ?? []) as Array<{
+    id: string; owner_id: string; credits_remaining: number; expires_at: string | null
+  }>
+
+  // Filter out expired credits in JS (expires_at null = no expiry)
+  const nowIso = now.toISOString()
+  const activeCredits = creditRows.filter(r => !r.expires_at || r.expires_at > nowIso)
+
+  // Collect all owner IDs and dog IDs we need to look up
+  const allOwnerIds = [...new Set([
+    ...confirmedBookings.map(b => b.owner_id),
+    ...exceptionBookings.map(b => b.owner_id),
+    ...activeCredits.map(r => r.owner_id),
+  ])]
+  const allDogIds = [...new Set([
+    ...confirmedBookings.map(b => b.dog_id),
+    ...exceptionBookings.map(b => b.dog_id),
+  ])]
+
+  const [dogResult, ownerResult] = await Promise.all([
+    allDogIds.length
+      ? supabase.from('dogs').select('id, name').in('id', allDogIds)
+      : Promise.resolve({ data: [] }),
+    allOwnerIds.length
+      ? supabase.from('users').select('id, name').in('id', allOwnerIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const dogById: Record<string, string> = {}
+  for (const d of (dogResult.data ?? [])) dogById[d.id] = d.name
+
+  const ownerById: Record<string, string | null> = {}
+  for (const u of (ownerResult.data ?? [])) ownerById[u.id] = u.name
+
+  const bookings: WeeklyBookingRow[] = confirmedBookings
+    .map(b => ({
+      id: b.id,
+      ownerName: ownerById[b.owner_id] ?? null,
+      dogName: dogById[b.dog_id] ?? 'Unknown',
+      amountCharged: b.amount_charged ?? 0,
+      hikeDate: dateById[b.hike_day_id] ?? '',
+      pickupMethod: b.pickup_method as 'curbside' | 'home' | null,
+    }))
+    .sort((a, b) => a.hikeDate.localeCompare(b.hikeDate))
+
+  const totalRevenue = bookings.reduce((s, b) => s + b.amountCharged, 0)
+
+  const exceptions: WeeklyException[] = exceptionBookings.map(b => ({
+    id: b.id,
+    ownerName: ownerById[b.owner_id] ?? null,
+    dogName: dogById[b.dog_id] ?? 'Unknown',
+    status: b.status as 'cancelled' | 'no_show',
+    hikeDate: dateById[b.hike_day_id] ?? '',
+  }))
+
+  const trailPackHolders: TrailPackHolder[] = activeCredits
+    .map(r => ({
+      id: r.id,
+      ownerName: ownerById[r.owner_id] ?? null,
+      creditsRemaining: r.credits_remaining,
+      expiresAt: r.expires_at,
+    }))
+    .sort((a, b) => (a.ownerName ?? '').localeCompare(b.ownerName ?? ''))
+
+  return { totalRevenue, weekMon: monIso, weekSun: sunIso, bookings, trailPackHolders, exceptions }
 }

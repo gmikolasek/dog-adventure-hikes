@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getClients, getWeeklyMetrics, getUpcomingRuns, type ClientRow, type WeeklyMetrics, type RunDay } from '@/lib/adminData'
+import { getClients, getWeeklyMetrics, getUpcomingHikes, type ClientRow, type WeeklyMetrics, type HikeDetail } from '@/lib/adminData'
 import { exportClientsToExcel } from '@/lib/excelExport'
 import { formatShort } from '@/lib/booking'
 
@@ -13,7 +13,7 @@ export default function StaffDashboard() {
   const [staffName, setStaffName] = useState('')
   const [clients, setClients] = useState<ClientRow[]>([])
   const [metrics, setMetrics] = useState<WeeklyMetrics>({ hikesThisWeek: 0, revenueThisWeek: 0, bookingsCount: 0 })
-  const [upcomingRuns, setUpcomingRuns] = useState<RunDay[]>([])
+  const [upcomingHikes, setUpcomingHikes] = useState<HikeDetail[]>([])
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -29,14 +29,14 @@ export default function StaffDashboard() {
       if (profile?.role !== 'staff') { router.push('/onboarding'); return }
       setStaffName(profile.name ?? '')
 
-      const [clientsData, metricsData, runsData] = await Promise.all([
+      const [clientsData, metricsData, hikesData] = await Promise.all([
         getClients(),
         getWeeklyMetrics(),
-        getUpcomingRuns(2),
+        getUpcomingHikes(2),
       ])
       setClients(clientsData)
       setMetrics(metricsData)
-      setUpcomingRuns(runsData)
+      setUpcomingHikes(hikesData)
       setReady(true)
     }
     load()
@@ -90,9 +90,9 @@ export default function StaffDashboard() {
           </button>
         </div>
 
-        {/* Weekly revenue hero — taps to runs overview */}
+        {/* Weekly revenue hero — links to /staff/revenue */}
         <button
-          onClick={() => router.push('/staff/runs')}
+          onClick={() => router.push('/staff/revenue')}
           className="w-full rounded-2xl bg-green-600 text-white p-5 mb-3 text-left hover:bg-green-700 transition-colors"
         >
           <p className="text-xs text-green-100">This week&apos;s revenue</p>
@@ -104,31 +104,31 @@ export default function StaffDashboard() {
 
         {/* Stat grid */}
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <Stat value={metrics.bookingsCount} label="Bookings this week" onClick={() => router.push('/staff/runs')} />
+          <Stat value={metrics.bookingsCount} label="Bookings this week" onClick={() => router.push('/staff/hikes')} />
           <Stat value={activeClients} label="Active clients" onClick={() => router.push('/staff/clients')} />
           <Stat value={pendingDogs} label="Pending approvals" onClick={() => router.push('/staff/approvals')} />
           <Stat value={clients.length} label="Total clients" onClick={() => router.push('/staff/clients')} />
         </div>
 
-        {/* Upcoming runs — compact summary cards */}
-        {upcomingRuns.length > 0 && (
+        {/* Upcoming hikes — compact summary cards */}
+        {upcomingHikes.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Upcoming runs</h2>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Upcoming hikes</h2>
             <div className="space-y-2">
-              {upcomingRuns.map(run => {
-                const isToday = run.date === today
-                const dateLabel = isToday ? 'Today' : formatShort(run.date)
-                const dogCount = run.bookings.length
+              {upcomingHikes.map(hike => {
+                const isToday = hike.date === today
+                const dateLabel = isToday ? 'Today' : formatShort(hike.date)
+                const dogCount = hike.bookings.length
                 return (
                   <button
-                    key={run.date}
-                    onClick={() => router.push(`/staff/runs/${run.date}`)}
+                    key={hike.date}
+                    onClick={() => router.push(`/staff/hikes/${hike.date}`)}
                     className="w-full flex items-center justify-between rounded-xl border border-gray-200 px-4 py-4 text-left hover:bg-gray-50 transition-colors"
                   >
                     <span>
                       <span className="block text-sm font-semibold text-gray-900">{dateLabel}</span>
-                      {run.destination && (
-                        <span className="block text-xs text-gray-500 mt-0.5">{run.destination}</span>
+                      {hike.destination && (
+                        <span className="block text-xs text-gray-500 mt-0.5">{hike.destination}</span>
                       )}
                       <span className="block text-xs text-gray-400 mt-0.5">
                         {dogCount} dog{dogCount !== 1 ? 's' : ''} confirmed
