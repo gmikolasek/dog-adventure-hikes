@@ -7,13 +7,14 @@ import { getUserState, landingRoute, type Dog, type Profile } from '@/lib/userSt
 import { formatShort, todayIso } from '@/lib/booking'
 
 type Zone = { name: string; description: string | null }
-type Upcoming = {
+type BookingCard = {
   id: string
   date: string
   destination: string | null
   dogName: string
   pickup: string | null
   dropoff: string | null
+  status: string
 }
 
 export default function ClientHome() {
@@ -22,7 +23,8 @@ export default function ClientHome() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [dogs, setDogs] = useState<Dog[]>([])
   const [zone, setZone] = useState<Zone | null>(null)
-  const [upcoming, setUpcoming] = useState<Upcoming[]>([])
+  const [upcoming, setUpcoming] = useState<BookingCard[]>([])
+  const [past, setPast] = useState<BookingCard[]>([])
 
   useEffect(() => {
     async function load() {
@@ -31,7 +33,6 @@ export default function ClientHome() {
 
       const state = await getUserState(session.user.id)
       const dest = landingRoute(state)
-      // If they don't belong on the home screen, send them where they do.
       if (dest !== '/client/home') { router.push(dest); return }
 
       setProfile(state.profile)
@@ -46,12 +47,13 @@ export default function ClientHome() {
         setZone(zoneRow as Zone | null)
       }
 
-      // Real upcoming bookings: confirmed, on a hike day from today onward.
+      // All bookings (confirmed + cancelled + no_show) for this owner.
       const { data: bookingRows } = await supabase
         .from('bookings')
-        .select('id, dog_id, hike_day_id, pickup_method, dropoff_method')
+        .select('id, dog_id, hike_day_id, pickup_method, dropoff_method, status')
         .eq('owner_id', session.user.id)
-        .eq('status', 'confirmed')
+        .in('status', ['confirmed', 'cancelled', 'no_show'])
+
       const bookings = bookingRows ?? []
       if (bookings.length) {
         const dayIds = [...new Set(bookings.map(b => b.hike_day_id))]
@@ -59,24 +61,40 @@ export default function ClientHome() {
           .from('hike_days')
           .select('id, date, destination_override')
           .in('id', dayIds)
-          .gte('date', todayIso())
+
         const dayById: Record<string, { date: string; destination_override: string | null }> = {}
         for (const d of dayRows ?? []) dayById[d.id] = d
+
         const dogNameById: Record<string, string> = {}
         for (const dog of state.dogs) dogNameById[dog.id] = dog.name
 
-        const list: Upcoming[] = bookings
-          .filter(b => dayById[b.hike_day_id]) // drops past days
-          .map(b => ({
+        const today = todayIso()
+        const upcomingList: BookingCard[] = []
+        const pastList: BookingCard[] = []
+
+        for (const b of bookings) {
+          const day = dayById[b.hike_day_id]
+          if (!day) continue
+          const card: BookingCard = {
             id: b.id,
-            date: dayById[b.hike_day_id].date,
-            destination: dayById[b.hike_day_id].destination_override,
+            date: day.date,
+            destination: day.destination_override,
             dogName: dogNameById[b.dog_id] ?? 'Your dog',
             pickup: b.pickup_method,
             dropoff: b.dropoff_method,
-          }))
-          .sort((a, b) => a.date.localeCompare(b.date))
-        setUpcoming(list)
+            status: b.status,
+          }
+          if (b.status === 'confirmed' && day.date >= today) {
+            upcomingList.push(card)
+          } else {
+            pastList.push(card)
+          }
+        }
+
+        upcomingList.sort((a, b) => a.date.localeCompare(b.date))
+        pastList.sort((a, b) => b.date.localeCompare(a.date)) // newest first
+        setUpcoming(upcomingList)
+        setPast(pastList)
       }
 
       setReady(true)
@@ -140,7 +158,7 @@ export default function ClientHome() {
           </div>
         )}
 
-        {/* Other dogs, if any */}
+        {/* Other dogs */}
         {dogs.length > 1 && (
           <div className="rounded-2xl border border-gray-200 p-4 mb-4">
             <p className="text-xs text-gray-400 mb-3">Your other dogs</p>
@@ -183,7 +201,7 @@ export default function ClientHome() {
         </button>
 
         {/* Upcoming bookings */}
-        <div>
+        <div className="mb-8">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Upcoming hikes</h2>
           {upcoming.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
@@ -196,12 +214,19 @@ export default function ClientHome() {
           ) : (
             <div className="space-y-2">
               {upcoming.map(u => (
-                <div key={u.id} className="rounded-2xl border border-gray-200 p-4">
+                <button
+                  key={u.id}
+                  onClick={() => router.push(`/client/bookings/${u.id}`)}
+                  className="w-full rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-gray-900">{formatShort(u.date)}</p>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
-                      Confirmed
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
+                        Confirmed
+                      </span>
+                      <span className="text-gray-400 text-xs">→</span>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
                     🐕 {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
@@ -211,14 +236,59 @@ export default function ClientHome() {
                       {u.pickup} pickup · {u.dropoff} drop-off
                     </p>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
 
+        {/* Past and cancelled */}
+        {past.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Past and cancelled</h2>
+            <div className="space-y-2">
+              {past.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => router.push(`/client/bookings/${u.id}`)}
+                  className="w-full rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50 transition-colors opacity-70"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-700">{formatShort(u.date)}</p>
+                    <div className="flex items-center gap-2">
+                      <PastStatusBadge status={u.status} />
+                      <span className="text-gray-400 text-xs">→</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    🐕 {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </main>
+  )
+}
+
+function PastStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    confirmed: 'bg-gray-100 text-gray-500',
+    cancelled: 'bg-red-100 text-red-600',
+    no_show: 'bg-red-100 text-red-600',
+  }
+  const label: Record<string, string> = {
+    confirmed: 'Completed',
+    cancelled: 'Cancelled',
+    no_show: 'No-show',
+  }
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${map[status] ?? 'bg-gray-100 text-gray-500'}`}>
+      {label[status] ?? status}
+    </span>
   )
 }
 
@@ -252,9 +322,7 @@ function StatusBadge({ status, small }: { status: string | null; small?: boolean
   }
   const s = map[status ?? ''] ?? { label: status ?? 'Unknown', cls: 'bg-gray-100 text-gray-600' }
   return (
-    <span
-      className={`inline-flex items-center px-2.5 ${small ? 'py-0.5 text-[11px]' : 'py-1 text-xs'} rounded-full font-medium ${s.cls}`}
-    >
+    <span className={`inline-flex items-center px-2.5 ${small ? 'py-0.5 text-[11px]' : 'py-1 text-xs'} rounded-full font-medium ${s.cls}`}>
       {s.label}
     </span>
   )
