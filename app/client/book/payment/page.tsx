@@ -266,8 +266,9 @@ function PaymentInner() {
         <div className="rounded-xl bg-gray-50 p-4 mb-6">
           <p className="text-xs font-medium text-gray-700 mb-1">Cancellation policy</p>
           <p className="text-xs text-gray-500 leading-relaxed">
-            More than 12 hours before the hike: fee held as credit. Within 12 hours or no-show:
-            full fee forfeited. Service-cancelled hikes are fully credited.
+            Before 5pm the day before the hike (UB time): fee held as 1 Trail Pack credit, valid
+            60 days. After 5pm the day before or no-show: full fee forfeited. Service-cancelled
+            hikes are fully credited.
           </p>
         </div>
 

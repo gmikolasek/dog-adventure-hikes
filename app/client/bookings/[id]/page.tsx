@@ -19,14 +19,14 @@ type BookingDetail = {
   amountCharged: number
   creditUsed: number
   cancelledAt: string | null
-  ownerId: string
 }
 
-// Returns true if the hike date is more than 12 hours away — client gets a credit on cancel.
+// Cutoff: 5pm Ulaanbaatar time (UTC+8) the day before the hike = 09:00 UTC.
+// Used only for displaying policy text; enforcement is server-side in cancel_booking().
 function isCreditEligible(hikeDate: string): boolean {
-  const hikeMidnight = new Date(hikeDate + 'T00:00:00')
-  const cutoff = new Date(hikeMidnight.getTime() - 12 * 60 * 60 * 1000)
-  return new Date() < cutoff
+  const [y, m, d] = hikeDate.split('-').map(Number)
+  const cutoff = new Date(Date.UTC(y, m - 1, d - 1, 9, 0, 0)) // 09:00 UTC = 17:00 UB
+  return Date.now() < cutoff.getTime()
 }
 
 export default function BookingDetailPage() {
@@ -60,7 +60,8 @@ export default function BookingDetailPage() {
 
       setUserId(session.user.id)
 
-      // Fetch the booking (RLS ensures owner_id matches).
+      // Fetch the booking. Query includes owner_id filter as defence-in-depth
+      // alongside RLS — if either were misconfigured the other still blocks access.
       const { data: bRow } = await supabase
         .from('bookings')
         .select('id, owner_id, dog_id, hike_day_id, status, pickup_method, dropoff_method, amount_charged, credit_used, cancelled_at')
@@ -68,16 +69,19 @@ export default function BookingDetailPage() {
         .eq('owner_id', session.user.id)
         .maybeSingle()
 
-      if (!bRow) { setNotFound(true); setReady(true); return }
+      // Explicit application-level ownership check — never trust RLS alone.
+      if (!bRow || bRow.owner_id !== session.user.id) {
+        setNotFound(true)
+        setReady(true)
+        return
+      }
 
-      // Fetch hike day.
       const { data: dayRow } = await supabase
         .from('hike_days')
         .select('date, destination_override')
         .eq('id', bRow.hike_day_id)
         .maybeSingle()
 
-      // Dog name.
       const dogNameById: Record<string, string> = {}
       for (const dog of state.dogs) dogNameById[dog.id] = dog.name
 
@@ -92,7 +96,6 @@ export default function BookingDetailPage() {
         amountCharged: bRow.amount_charged ?? 0,
         creditUsed: bRow.credit_used ?? 0,
         cancelledAt: bRow.cancelled_at ?? null,
-        ownerId: bRow.owner_id,
       }
       setBooking(detail)
       setEditPickup(detail.pickupMethod)
@@ -123,39 +126,31 @@ export default function BookingDetailPage() {
     }
   }
 
+  // Cancellation goes through the cancel_booking() SECURITY DEFINER RPC so that
+  // eligibility is computed server-side and the credit insert is atomic with the
+  // booking update. The client cannot bypass the cutoff by calling the insert
+  // directly because the function is the authoritative gatekeeper.
   async function confirmCancel() {
     if (!booking) return
     setCancelling(true)
     setCancelError('')
 
-    const creditEligible = isCreditEligible(booking.hikeDate)
-    const now = new Date().toISOString()
+    const { data: result, error: rpcErr } = await supabase
+      .rpc('cancel_booking', { booking_id: booking.id })
 
-    const { error: cancelErr } = await supabase
-      .from('bookings')
-      .update({ status: 'cancelled', cancelled_at: now, cancellation_reason: 'Client cancelled' })
-      .eq('id', booking.id)
-      .eq('owner_id', userId)
-
-    if (cancelErr) {
-      setCancelError(cancelErr.message)
+    if (rpcErr) {
+      setCancelError(rpcErr.message)
       setCancelling(false)
       return
     }
 
-    if (creditEligible) {
-      const expires = new Date()
-      expires.setDate(expires.getDate() + 60)
-      await supabase.from('trail_pack_credits').insert({
-        owner_id: userId,
-        credits_remaining: 1,
-        purchase_amount: 0,
-        expires_at: expires.toISOString(),
-      })
+    if (result?.error) {
+      setCancelError('Unable to cancel — booking may already be cancelled or not found.')
+      setCancelling(false)
+      return
     }
 
-    // Reflect cancellation locally without a refetch.
-    setBooking(prev => prev ? { ...prev, status: 'cancelled', cancelledAt: now } : prev)
+    setBooking(prev => prev ? { ...prev, status: 'cancelled', cancelledAt: new Date().toISOString() } : prev)
     setShowCancelPanel(false)
     setCancelling(false)
   }
@@ -184,7 +179,7 @@ export default function BookingDetailPage() {
   const isConfirmed = booking.status === 'confirmed'
   const isFuture = booking.hikeDate >= new Date().toISOString().slice(0, 10)
   const canEdit = isConfirmed && isFuture
-  const creditEligible = isCreditEligible(booking.hikeDate)
+  const creditEligible = booking.hikeDate ? isCreditEligible(booking.hikeDate) : false
   const isTrailPack = booking.amountCharged > PRICE_PER_DOG
   const isCredit = booking.creditUsed > 0
 
@@ -241,16 +236,8 @@ export default function BookingDetailPage() {
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Change pickup / drop-off</h2>
 
             <div className="space-y-4">
-              <MethodToggle
-                label="Pickup"
-                value={editPickup}
-                onChange={setEditPickup}
-              />
-              <MethodToggle
-                label="Drop-off"
-                value={editDropoff}
-                onChange={setEditDropoff}
-              />
+              <MethodToggle label="Pickup" value={editPickup} onChange={setEditPickup} />
+              <MethodToggle label="Drop-off" value={editDropoff} onChange={setEditDropoff} />
             </div>
 
             {methodsChanged && (
@@ -286,14 +273,14 @@ export default function BookingDetailPage() {
               <p className="font-medium text-gray-700">Cancellation policy</p>
               {creditEligible ? (
                 <p>
-                  You&apos;re cancelling more than 12 hours before the hike.{' '}
+                  You&apos;re cancelling before 5pm the day before the hike.{' '}
                   <span className="text-green-700 font-medium">
                     Your booking fee will be converted to 1 Trail Pack credit, valid for 60 days.
                   </span>
                 </p>
               ) : (
                 <p>
-                  This hike is within 12 hours.{' '}
+                  The cancellation window has passed (5pm the day before the hike).{' '}
                   <span className="text-red-600 font-medium">
                     Your booking fee will be forfeited — no credit will be issued.
                   </span>

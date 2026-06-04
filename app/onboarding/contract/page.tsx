@@ -23,7 +23,7 @@ const sections = [
   {
     id: 'cancellation',
     title: '4. Cancellation and No-Show Policy',
-    body: 'Cancellation more than 12 hours before the hike: fee held as credit for future use. Cancellation within 12 hours: full fee forfeited. No-show (not present at pickup): full fee forfeited. The Service will attempt one contact before departing. Service-initiated cancellation: full fee credited to your account.'
+    body: 'Cancellation before 5pm the day before the hike (Ulaanbaatar time): fee held as 1 Trail Pack credit, valid 60 days. Cancellation after 5pm the day before, or on the day of the hike: full fee forfeited. No-show (not present at pickup): full fee forfeited. The Service will attempt one contact before departing. Service-initiated cancellation: full fee credited to your account.'
   },
   {
     id: 'equipment',
