@@ -14,6 +14,7 @@ const BOOKABLE = new Set(['approved', 'approved_with_conditions'])
 export default function BookHike() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
+  const [userId, setUserId] = useState('')
   const [dogs, setDogs] = useState<Dog[]>([])
   const [zoneName, setZoneName] = useState<string | null>(null)
 
@@ -24,6 +25,9 @@ export default function BookHike() {
   const [pickup, setPickup] = useState<Method | null>(null)
   const [dropoff, setDropoff] = useState<Method | null>(null)
 
+  // Dog IDs that already have a confirmed booking on the selected hike day.
+  const [bookedDogIds, setBookedDogIds] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -32,6 +36,8 @@ export default function BookHike() {
       const state = await getUserState(session.user.id)
       const dest = landingRoute(state)
       if (dest !== '/client/home') { router.push(dest); return }
+
+      setUserId(session.user.id)
 
       const bookable = state.dogs.filter(d => BOOKABLE.has(d.approval_status ?? ''))
       setDogs(bookable)
@@ -43,7 +49,6 @@ export default function BookHike() {
           .from('zones').select('name').eq('id', zoneId).maybeSingle()
         setZoneName((zoneRow as { name: string } | null)?.name ?? null)
 
-        // Open days from today forward that include the client's zone.
         const { data: dayRows } = await supabase
           .from('hike_days')
           .select('*')
@@ -60,7 +65,30 @@ export default function BookHike() {
     load()
   }, [router])
 
+  // When the selected day changes, fetch which of the client's dogs are already
+  // confirmed for that day, and remove them from the selection.
+  useEffect(() => {
+    if (!selectedDay || !userId) {
+      setBookedDogIds(new Set())
+      return
+    }
+    async function fetchBooked() {
+      const { data } = await supabase
+        .from('bookings')
+        .select('dog_id')
+        .eq('hike_day_id', selectedDay)
+        .eq('owner_id', userId)
+        .eq('status', 'confirmed')
+      const booked = new Set((data ?? []).map((b: { dog_id: string }) => b.dog_id))
+      setBookedDogIds(booked)
+      // Drop any already-selected dogs that are now blocked.
+      setSelectedDogs(prev => prev.filter(id => !booked.has(id)))
+    }
+    fetchBooked()
+  }, [selectedDay, userId])
+
   function toggleDog(id: string) {
+    if (bookedDogIds.has(id)) return
     setSelectedDogs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
@@ -75,7 +103,10 @@ export default function BookHike() {
     router.push(`/client/book/payment?${params.toString()}`)
   }
 
-  const canProceed = !!selectedDay && selectedDogs.length > 0 && !!pickup && !!dropoff
+  const canProceed = !!selectedDay
+    && selectedDogs.length > 0
+    && !!pickup
+    && !!dropoff
 
   if (!ready) {
     return (
@@ -151,25 +182,38 @@ export default function BookHike() {
         ) : (
           <div className="space-y-2 mb-7">
             {dogs.map(dog => {
+              const alreadyBooked = bookedDogIds.has(dog.id)
               const active = selectedDogs.includes(dog.id)
               return (
                 <button
                   key={dog.id}
                   type="button"
+                  disabled={alreadyBooked}
                   onClick={() => toggleDog(dog.id)}
                   className={`w-full flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-colors ${
-                    active ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
+                    alreadyBooked
+                      ? 'border-gray-200 opacity-50 cursor-not-allowed'
+                      : active
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-200 hover:border-green-300'
                   }`}
                 >
                   <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
-                    active ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300'
+                    alreadyBooked
+                      ? 'border-gray-300 bg-gray-100'
+                      : active
+                        ? 'border-green-600 bg-green-600 text-white'
+                        : 'border-gray-300'
                   }`}>
-                    {active && <span className="text-xs">✓</span>}
+                    {active && !alreadyBooked && <span className="text-xs">✓</span>}
                   </span>
-                  <span className="min-w-0">
+                  <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-gray-900 truncate">{dog.name}</span>
                     {dog.breed && <span className="block text-xs text-gray-500 truncate">{dog.breed}</span>}
                   </span>
+                  {alreadyBooked && (
+                    <span className="text-xs text-gray-400 flex-shrink-0">Already booked</span>
+                  )}
                 </button>
               )
             })}
