@@ -1,13 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { uploadDogProfilePhoto } from '@/lib/photos'
 
 export default function DogProfile() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState(1)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   // Dog profile fields
@@ -101,6 +105,15 @@ export default function DogProfile() {
     )
   }
 
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    const reader = new FileReader()
+    reader.onload = ev => setPhotoPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
   async function saveDog() {
     setLoading(true)
     setError('')
@@ -108,7 +121,7 @@ export default function DogProfile() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/'); return }
 
-    const { error } = await supabase.from('dogs').insert({
+    const { data: inserted, error: insertError } = await supabase.from('dogs').insert({
       owner_id: session.user.id,
       name,
       breed,
@@ -125,21 +138,30 @@ export default function DogProfile() {
       airtag_confirmed: airtag ?? false,
       ecollar: ecollar ?? false,
       approval_status: 'pending',
-    })
+    }).select('id')
+
+    if (insertError) {
+      setError(insertError.message)
+      setLoading(false)
+      return
+    }
 
     // Save training interest to user record
-    if (!error) {
-      await supabase
-        .from('users')
-        .update({ training_interest: trainingInterest })
-        .eq('id', session.user.id)
+    await supabase
+      .from('users')
+      .update({ training_interest: trainingInterest })
+      .eq('id', session.user.id)
+
+    // Upload profile photo if one was chosen
+    const dogId = inserted?.[0]?.id
+    if (photoFile && dogId) {
+      const photoUrl = await uploadDogProfilePhoto(photoFile, session.user.id, dogId)
+      if (photoUrl) {
+        await supabase.from('dogs').update({ photo_url: photoUrl }).eq('id', dogId)
+      }
     }
 
-    if (error) {
-      setError(error.message)
-    } else {
-      router.push('/onboarding/contract')
-    }
+    router.push('/onboarding/contract')
     setLoading(false)
   }
 
@@ -176,6 +198,36 @@ export default function DogProfile() {
         {/* Step 1: Basic info */}
         {step === 1 && (
           <div>
+            {/* Photo picker */}
+            <div className="flex justify-center mb-6">
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="relative"
+              >
+                {photoPreview ? (
+                  <div
+                    className="w-24 h-24 rounded-full bg-cover bg-center"
+                    style={{ backgroundImage: `url(${photoPreview})` }}
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">
+                    <span className="text-4xl">🐕</span>
+                  </div>
+                )}
+                <div className="absolute bottom-0 right-0 w-7 h-7 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md">
+                  📷
+                </div>
+              </button>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
+            </div>
+
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">Dog's name</label>
               <input

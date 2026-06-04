@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { getUserState, landingRoute } from '@/lib/userState'
 import { formatFull, PRICE_PER_DOG } from '@/lib/booking'
+import { getPhotoUrl, type HikePhoto } from '@/lib/photos'
 
 type Method = 'curbside' | 'home'
 
@@ -12,8 +13,11 @@ type BookingDetail = {
   id: string
   status: string
   hikeDate: string
-  destination: string | null
+  hikeDayId: string
+  dogId: string
   dogName: string
+  dogPhotoUrl: string | null
+  destination: string | null
   pickupMethod: Method | null
   dropoffMethod: Method | null
   amountCharged: number
@@ -29,6 +33,23 @@ function isCreditEligible(hikeDate: string): boolean {
   return Date.now() < cutoff.getTime()
 }
 
+async function downloadPhoto(url: string) {
+  try {
+    const resp = await fetch(url)
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = 'hike-photo.jpg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(objectUrl)
+  } catch {
+    window.open(url, '_blank')
+  }
+}
+
 export default function BookingDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -38,6 +59,11 @@ export default function BookingDetailPage() {
   const [userId, setUserId] = useState('')
   const [booking, setBooking] = useState<BookingDetail | null>(null)
   const [notFound, setNotFound] = useState(false)
+
+  // Photos
+  const [dogPhotos, setDogPhotos] = useState<HikePhoto[]>([])
+  const [groupPhotos, setGroupPhotos] = useState<HikePhoto[]>([])
+  const [lightbox, setLightbox] = useState<HikePhoto | null>(null)
 
   // Method editor state
   const [editPickup, setEditPickup] = useState<Method | null>(null)
@@ -83,14 +109,21 @@ export default function BookingDetailPage() {
         .maybeSingle()
 
       const dogNameById: Record<string, string> = {}
-      for (const dog of state.dogs) dogNameById[dog.id] = dog.name
+      const dogPhotoById: Record<string, string | null> = {}
+      for (const dog of state.dogs) {
+        dogNameById[dog.id] = dog.name
+        dogPhotoById[dog.id] = dog.photo_url
+      }
 
       const detail: BookingDetail = {
         id: bRow.id,
         status: bRow.status,
         hikeDate: dayRow?.date ?? '',
-        destination: dayRow?.destination_override ?? null,
+        hikeDayId: bRow.hike_day_id,
+        dogId: bRow.dog_id,
         dogName: dogNameById[bRow.dog_id] ?? 'Your dog',
+        dogPhotoUrl: dogPhotoById[bRow.dog_id] ?? null,
+        destination: dayRow?.destination_override ?? null,
         pickupMethod: bRow.pickup_method as Method | null,
         dropoffMethod: bRow.dropoff_method as Method | null,
         amountCharged: bRow.amount_charged ?? 0,
@@ -100,6 +133,25 @@ export default function BookingDetailPage() {
       setBooking(detail)
       setEditPickup(detail.pickupMethod)
       setEditDropoff(detail.dropoffMethod)
+
+      // Load hike photos (RLS: only visible if this client had a confirmed booking on that day)
+      const { data: photoRows } = await supabase
+        .from('hike_photos')
+        .select('id, dog_id, storage_path, caption, taken_at')
+        .eq('hike_day_id', bRow.hike_day_id)
+        .order('created_at', { ascending: true })
+
+      const allPhotos: HikePhoto[] = (photoRows ?? []).map(r => ({
+        id: r.id,
+        dogId: r.dog_id,
+        storagePath: r.storage_path,
+        caption: r.caption,
+        takenAt: r.taken_at,
+      }))
+
+      setDogPhotos(allPhotos.filter(p => p.dogId === bRow.dog_id))
+      setGroupPhotos(allPhotos.filter(p => p.dogId === null))
+
       setReady(true)
     }
     load()
@@ -182,6 +234,7 @@ export default function BookingDetailPage() {
   const creditEligible = booking.hikeDate ? isCreditEligible(booking.hikeDate) : false
   const isTrailPack = booking.amountCharged > PRICE_PER_DOG
   const isCredit = booking.creditUsed > 0
+  const hasPhotos = dogPhotos.length > 0 || groupPhotos.length > 0
 
   return (
     <main className="min-h-screen bg-white px-6 py-10">
@@ -207,8 +260,16 @@ export default function BookingDetailPage() {
 
         {/* Booking details card */}
         <div className="rounded-2xl border border-gray-200 p-5 mb-5">
+          {/* Dog avatar + name */}
+          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100">
+            <DogAvatar photoUrl={booking.dogPhotoUrl} name={booking.dogName} size={44} />
+            <div>
+              <p className="text-sm font-semibold text-gray-900">{booking.dogName}</p>
+              <BookingStatusBadge status={booking.status} />
+            </div>
+          </div>
+
           <div className="space-y-3">
-            <DetailRow label="Dog" value={booking.dogName} />
             <DetailRow label="Pickup" value={booking.pickupMethod ?? '—'} capitalize />
             <DetailRow label="Drop-off" value={booking.dropoffMethod ?? '—'} capitalize />
             <div className="pt-3 border-t border-gray-100">
@@ -222,10 +283,6 @@ export default function BookingDetailPage() {
               ) : (
                 <DetailRow label="Amount paid" value={`₮${booking.amountCharged.toLocaleString()}`} />
               )}
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Status</span>
-              <BookingStatusBadge status={booking.status} />
             </div>
           </div>
         </div>
@@ -259,14 +316,14 @@ export default function BookingDetailPage() {
         {canEdit && !showCancelPanel && (
           <button
             onClick={() => setShowCancelPanel(true)}
-            className="w-full rounded-xl border border-red-200 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full rounded-xl border border-red-200 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mb-5"
           >
             Cancel booking
           </button>
         )}
 
         {canEdit && showCancelPanel && (
-          <div className="rounded-2xl border border-red-200 p-5">
+          <div className="rounded-2xl border border-red-200 p-5 mb-5">
             <h2 className="text-sm font-semibold text-gray-900 mb-3">Cancel this booking?</h2>
 
             <div className="rounded-xl bg-gray-50 p-4 mb-4 text-xs text-gray-600 leading-relaxed space-y-1.5">
@@ -312,7 +369,7 @@ export default function BookingDetailPage() {
 
         {/* Cancelled state message */}
         {booking.status === 'cancelled' && (
-          <div className="rounded-2xl border border-gray-200 p-5 text-center">
+          <div className="rounded-2xl border border-gray-200 p-5 text-center mb-5">
             <p className="text-sm text-gray-500">This booking was cancelled.</p>
             {booking.cancelledAt && (
               <p className="text-xs text-gray-400 mt-1">
@@ -322,8 +379,124 @@ export default function BookingDetailPage() {
           </div>
         )}
 
+        {/* ── Photos section ── */}
+        {hasPhotos && (
+          <div className="mt-2">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Photos</h2>
+
+            {/* Dog-specific photos first */}
+            {dogPhotos.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-gray-400 mb-2">{booking.dogName}</p>
+                <div className="space-y-2">
+                  {dogPhotos.map(p => (
+                    <PhotoCard key={p.id} photo={p} onTap={() => setLightbox(p)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Group photos below */}
+            {groupPhotos.length > 0 && (
+              <div>
+                <p className="text-xs text-gray-400 mb-2">Group photos</p>
+                <div className="space-y-2">
+                  {groupPhotos.map(p => (
+                    <PhotoCard key={p.id} photo={p} onTap={() => setLightbox(p)} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex flex-col"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="flex items-center justify-between px-5 py-4">
+            <button
+              onClick={() => setLightbox(null)}
+              className="text-white text-sm font-medium"
+            >
+              ✕ Close
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); downloadPhoto(getPhotoUrl(lightbox.storagePath)) }}
+              className="text-white text-sm font-medium"
+            >
+              ↓ Download
+            </button>
+          </div>
+
+          <div
+            className="flex-1 flex items-center justify-center px-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="w-full rounded-2xl bg-cover bg-center"
+              style={{
+                backgroundImage: `url(${getPhotoUrl(lightbox.storagePath)})`,
+                height: '70vw',
+                maxHeight: '65vh',
+              }}
+            />
+          </div>
+
+          {lightbox.caption && (
+            <p className="text-white text-sm text-center px-6 pb-8 pt-4">{lightbox.caption}</p>
+          )}
+          {!lightbox.caption && <div className="pb-8" />}
+        </div>
+      )}
     </main>
+  )
+}
+
+function DogAvatar({ photoUrl, name, size }: { photoUrl: string | null; name: string; size: number }) {
+  if (photoUrl) {
+    return (
+      <div
+        className="rounded-full bg-gray-100 bg-cover bg-center flex-shrink-0"
+        style={{ width: size, height: size, backgroundImage: `url(${photoUrl})` }}
+        role="img"
+        aria-label={name}
+      />
+    )
+  }
+  return (
+    <div
+      className="rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <span style={{ fontSize: size * 0.5 }}>🐕</span>
+    </div>
+  )
+}
+
+function PhotoCard({ photo, onTap }: { photo: HikePhoto; onTap: () => void }) {
+  return (
+    <button
+      onClick={onTap}
+      className="w-full rounded-2xl overflow-hidden text-left"
+      style={{ display: 'block' }}
+    >
+      <div
+        className="w-full rounded-2xl bg-cover bg-center bg-gray-100 relative"
+        style={{ backgroundImage: `url(${getPhotoUrl(photo.storagePath)})`, height: 200 }}
+      >
+        {photo.caption && (
+          <div className="absolute bottom-0 left-0 right-0 rounded-b-2xl px-4 py-3"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }}>
+            <p className="text-xs text-white">{photo.caption}</p>
+          </div>
+        )}
+      </div>
+    </button>
   )
 }
 
@@ -372,7 +545,7 @@ function BookingStatusBadge({ status }: { status: string }) {
   }
   const s = map[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600' }
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>
       {s.label}
     </span>
   )

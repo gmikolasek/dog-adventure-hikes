@@ -137,7 +137,16 @@ export default function ClientHome() {
         {primary && (
           <div className="rounded-2xl border border-gray-200 p-5 mb-4">
             <div className="flex items-center gap-4">
-              <DogAvatar dog={primary} size={64} />
+              <button
+                onClick={() => router.push('/client/profile')}
+                className="relative flex-shrink-0"
+                aria-label="Update dog photo"
+              >
+                <DogAvatar dog={primary} size={64} />
+                <div className="absolute bottom-0 right-0 w-5 h-5 bg-green-600 rounded-full flex items-center justify-center text-white shadow-sm" style={{ fontSize: 10 }}>
+                  📷
+                </div>
+              </button>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400">
                   {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
