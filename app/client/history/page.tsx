@@ -83,6 +83,7 @@ export default function HistoryPage() {
         .order('created_at', { ascending: true })
 
       const bookings = (bRows ?? []) as BookingRow[]
+      console.log('[history] today (UTC):', today, '| bookings fetched:', bookings.length, bookings.map(b => ({ id: b.id.slice(0, 8), status: b.status, hike_day_id: b.hike_day_id.slice(0, 8), dropped_off_at: b.dropped_off_at })))
 
       let dayById: Record<string, { date: string; destination_override: string | null }> = {}
       if (bookings.length) {
@@ -91,6 +92,7 @@ export default function HistoryPage() {
           .from('hike_days')
           .select('id, date, destination_override')
           .in('id', dayIds)
+        console.log('[history] hike_days fetched:', (dayRows ?? []).length, (dayRows ?? []).map(d => ({ id: d.id.slice(0, 8), date: d.date })))
         for (const d of dayRows ?? []) dayById[d.id] = d
       }
 
@@ -168,7 +170,11 @@ export default function HistoryPage() {
         const day = dayById[b.hike_day_id]
         if (!day) continue
 
-        if (b.status === 'confirmed' && day.date < today) {
+        // A hike is "completed" if the date is strictly in the past OR if
+        // dropped_off_at is set (dog was returned today — same-day hikes pass
+        // the date < today check only starting tomorrow UTC).
+        if (b.status === 'confirmed' && (b.dropped_off_at || day.date < today)) {
+          console.log('[history] completed hit:', { date: day.date, today, dropped_off_at: b.dropped_off_at })
           completedList.push({
             bookingId: b.id,
             date: day.date,
