@@ -23,6 +23,7 @@ type BookingDetail = {
   amountCharged: number
   creditUsed: number
   cancelledAt: string | null
+  droppedOffAt: string | null
 }
 
 // Cutoff: 5pm Ulaanbaatar time (UTC+8) the day before the hike = 09:00 UTC.
@@ -90,7 +91,7 @@ export default function BookingDetailPage() {
       // alongside RLS — if either were misconfigured the other still blocks access.
       const { data: bRow } = await supabase
         .from('bookings')
-        .select('id, owner_id, dog_id, hike_day_id, status, pickup_method, dropoff_method, amount_charged, credit_used, cancelled_at')
+        .select('id, owner_id, dog_id, hike_day_id, status, pickup_method, dropoff_method, amount_charged, credit_used, cancelled_at, dropped_off_at')
         .eq('id', bookingId)
         .eq('owner_id', session.user.id)
         .maybeSingle()
@@ -129,6 +130,7 @@ export default function BookingDetailPage() {
         amountCharged: bRow.amount_charged ?? 0,
         creditUsed: bRow.credit_used ?? 0,
         cancelledAt: bRow.cancelled_at ?? null,
+        droppedOffAt: bRow.dropped_off_at ?? null,
       }
       setBooking(detail)
       setEditPickup(detail.pickupMethod)
@@ -229,8 +231,9 @@ export default function BookingDetailPage() {
   }
 
   const isConfirmed = booking.status === 'confirmed'
+  const isCompleted = isConfirmed && !!booking.droppedOffAt
   const isFuture = booking.hikeDate >= new Date().toISOString().slice(0, 10)
-  const canEdit = isConfirmed && isFuture
+  const canEdit = isConfirmed && isFuture && !isCompleted
   const creditEligible = booking.hikeDate ? isCreditEligible(booking.hikeDate) : false
   const isTrailPack = booking.amountCharged > PRICE_PER_DOG
   const isCredit = booking.creditUsed > 0
@@ -265,7 +268,7 @@ export default function BookingDetailPage() {
             <DogAvatar photoUrl={booking.dogPhotoUrl} name={booking.dogName} size={44} />
             <div>
               <p className="text-sm font-semibold text-gray-900">{booking.dogName}</p>
-              <BookingStatusBadge status={booking.status} />
+              <BookingStatusBadge status={isCompleted ? 'completed' : booking.status} />
             </div>
           </div>
 
@@ -364,6 +367,18 @@ export default function BookingDetailPage() {
                 Keep booking
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Completed state message */}
+        {isCompleted && (
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 text-center mb-5">
+            <p className="text-sm font-medium text-blue-700">Hike completed 🥾</p>
+            {booking.droppedOffAt && (
+              <p className="text-xs text-blue-500 mt-1">
+                Dropped off {new Date(booking.droppedOffAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </p>
+            )}
           </div>
         )}
 
@@ -539,6 +554,7 @@ function MethodToggle({ label, value, onChange }: {
 function BookingStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     confirmed: { label: 'Confirmed', cls: 'bg-green-100 text-green-700' },
+    completed: { label: 'Completed', cls: 'bg-blue-100 text-blue-700' },
     cancelled: { label: 'Cancelled', cls: 'bg-red-100 text-red-600' },
     no_show: { label: 'No-show', cls: 'bg-red-100 text-red-600' },
     pending_payment: { label: 'Pending', cls: 'bg-amber-100 text-amber-700' },
