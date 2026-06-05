@@ -27,6 +27,7 @@ export default function HikeDetailPage() {
   const [uploadError, setUploadError] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -129,10 +130,25 @@ export default function HikeDetailPage() {
     const photo = photos.find(p => p.id === photoId)
     if (!photo) return
     setDeleting(true)
+    setDeleteError('')
 
-    // Delete from storage first, then the DB row.
-    await supabase.storage.from('dog-photos').remove([photo.storagePath])
-    await supabase.from('hike_photos').delete().eq('id', photoId)
+    // Storage delete (best-effort — orphan is acceptable if this fails)
+    const { error: storageErr } = await supabase.storage
+      .from('dog-photos')
+      .remove([photo.storagePath])
+    if (storageErr) console.error('Storage delete failed', storageErr)
+
+    // DB row delete (authoritative — must succeed)
+    const { error: dbErr } = await supabase
+      .from('hike_photos')
+      .delete()
+      .eq('id', photoId)
+
+    if (dbErr) {
+      setDeleteError('Delete failed — ' + dbErr.message)
+      setDeleting(false)
+      return
+    }
 
     setPhotos(prev => prev.filter(p => p.id !== photoId))
     setConfirmDeleteId(null)
@@ -332,6 +348,7 @@ export default function HikeDetailPage() {
           <div className="w-full bg-white rounded-t-3xl p-6 max-w-sm mx-auto">
             <p className="text-base font-semibold text-gray-900 mb-2">Delete this photo?</p>
             <p className="text-sm text-gray-500 mb-6">This will permanently remove the photo from storage and cannot be undone.</p>
+            {deleteError && <p className="text-xs text-red-500 mb-4">{deleteError}</p>}
             <button
               onClick={() => handleDeletePhoto(confirmDeleteId)}
               disabled={deleting}
