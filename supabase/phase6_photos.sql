@@ -73,25 +73,33 @@ create policy "clients read hike photos" on public.hike_photos
 -- ----------------------------------------------------------------------------
 
 -- Clients upload to profiles/<their own user id>/...
+-- Uses storage.foldername() helper (Supabase-idiomatic; more reliable than split_part).
+-- storage.foldername('profiles/{uid}/{dog}.jpg') → ['profiles', '{uid}']
 drop policy if exists "clients upload profile photos" on storage.objects;
 create policy "clients upload profile photos"
   on storage.objects for insert
   to authenticated
   with check (
     bucket_id = 'dog-photos'
-    and split_part(name, '/', 1) = 'profiles'
-    and split_part(name, '/', 2) = auth.uid()::text
+    and (storage.foldername(name))[1] = 'profiles'
+    and (storage.foldername(name))[2] = auth.uid()::text
   );
 
 -- Clients can overwrite their own profile photo (same path, different file).
+-- WITH CHECK is required on UPDATE policies; without it Postgres rejects the write.
 drop policy if exists "clients update profile photos" on storage.objects;
 create policy "clients update profile photos"
   on storage.objects for update
   to authenticated
   using (
     bucket_id = 'dog-photos'
-    and split_part(name, '/', 1) = 'profiles'
-    and split_part(name, '/', 2) = auth.uid()::text
+    and (storage.foldername(name))[1] = 'profiles'
+    and (storage.foldername(name))[2] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'dog-photos'
+    and (storage.foldername(name))[1] = 'profiles'
+    and (storage.foldername(name))[2] = auth.uid()::text
   );
 
 -- Staff upload to hikes/...
@@ -101,6 +109,6 @@ create policy "staff upload hike photos"
   to authenticated
   with check (
     bucket_id = 'dog-photos'
-    and split_part(name, '/', 1) = 'hikes'
+    and (storage.foldername(name))[1] = 'hikes'
     and public.is_staff()
   );
