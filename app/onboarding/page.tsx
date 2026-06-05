@@ -68,6 +68,7 @@ export default function Onboarding() {
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !loading && name.trim().length >= 2 && address.trim().length >= 5) saveProfile() }}
             placeholder="e.g. Enkhjargal"
             className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />

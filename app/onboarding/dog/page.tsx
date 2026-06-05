@@ -234,6 +234,7 @@ export default function DogProfile() {
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
                 placeholder="e.g. Nokhoi"
                 className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
@@ -245,6 +246,7 @@ export default function DogProfile() {
                 type="text"
                 value={breed}
                 onChange={e => setBreed(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
                 placeholder="e.g. Bankhar, Mixed, Labrador"
                 className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
@@ -257,6 +259,7 @@ export default function DogProfile() {
                   type="number"
                   value={ageYears}
                   onChange={e => setAgeYears(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
                   placeholder="3"
                   className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
@@ -267,6 +270,7 @@ export default function DogProfile() {
                   type="number"
                   value={weightKg}
                   onChange={e => setWeightKg(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
                   placeholder="28"
                   className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />

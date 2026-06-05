@@ -80,6 +80,7 @@ async function verifyOtp() {
                 type="tel"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !loading && phone.length >= 7) sendOtp() }}
                 placeholder="8800 0000"
                 className="flex-1 rounded-r-lg border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
@@ -109,6 +110,7 @@ async function verifyOtp() {
               type="number"
               value={otp}
               onChange={e => setOtp(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !loading && otp.length >= 6) verifyOtp() }}
               placeholder="000000"
               maxLength={6}
               className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-green-500 mb-6"
