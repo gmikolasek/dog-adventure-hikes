@@ -26,26 +26,20 @@ export async function uploadDogProfilePhoto(
   dogId: string,
 ): Promise<string | null> {
   const ext = extFromType(file.type)
-  const path = `profiles/${userId}/${dogId}.${ext}`
+  // Timestamp suffix avoids conflicts without needing upsert.
+  // Old files are orphaned in storage but dogs.photo_url always points to the latest.
+  const path = `profiles/${userId}/${dogId}-${Date.now()}.${ext}`
 
   const { error } = await supabase.storage
     .from('dog-photos')
-    .upload(path, file, { upsert: true, contentType: file.type })
+    .upload(path, file, { contentType: file.type })
 
   if (error) {
-    // Log enough to diagnose RLS vs auth vs network failures.
     const { data: { session } } = await supabase.auth.getSession()
-    console.error('Profile photo upload failed', {
-      message: error.message,
-      // StorageError also carries status/statusCode depending on SDK version
-      status: (error as unknown as Record<string, unknown>).status,
-      statusCode: (error as unknown as Record<string, unknown>).statusCode,
-      path,
-      contentType: file.type,
-      fileSize: file.size,
-      authUid: session?.user?.id ?? '⚠️ NO SESSION',
-      sessionExpiresAt: session?.expires_at,
-    })
+    console.error('Profile photo upload failed',
+      JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      { path, contentType: file.type, fileSize: file.size, authUid: session?.user?.id ?? '⚠️ NO SESSION' },
+    )
     return null
   }
 
@@ -67,15 +61,10 @@ export async function uploadHikePhoto(
 
   if (error) {
     const { data: { session } } = await supabase.auth.getSession()
-    console.error('Hike photo upload failed', {
-      message: error.message,
-      status: (error as unknown as Record<string, unknown>).status,
-      statusCode: (error as unknown as Record<string, unknown>).statusCode,
-      path,
-      contentType: file.type,
-      fileSize: file.size,
-      authUid: session?.user?.id ?? '⚠️ NO SESSION',
-    })
+    console.error('Hike photo upload failed',
+      JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      { path, contentType: file.type, fileSize: file.size, authUid: session?.user?.id ?? '⚠️ NO SESSION' },
+    )
     return null
   }
 
