@@ -120,22 +120,31 @@ export default function StaffDashboard() {
                 const dateLabel = isToday ? 'Today' : formatShort(hike.date)
                 const dogCount = hike.bookings.length
                 return (
-                  <button
-                    key={hike.date}
-                    onClick={() => router.push(`/staff/hikes/${hike.date}`)}
-                    className="w-full flex items-center justify-between rounded-xl border border-gray-200 px-4 py-4 text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <span>
-                      <span className="block text-sm font-semibold text-gray-900">{dateLabel}</span>
-                      {hike.destination && (
-                        <span className="block text-xs text-gray-500 mt-0.5">{hike.destination}</span>
-                      )}
-                      <span className="block text-xs text-gray-400 mt-0.5">
-                        {dogCount} dog{dogCount !== 1 ? 's' : ''} confirmed
+                  <div key={hike.date} className="rounded-xl border border-gray-200 overflow-hidden">
+                    <button
+                      onClick={() => router.push(`/staff/hikes/${hike.date}`)}
+                      className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <span>
+                        <span className="block text-sm font-semibold text-gray-900">{dateLabel}</span>
+                        {hike.destination && (
+                          <span className="block text-xs text-gray-500 mt-0.5">{hike.destination}</span>
+                        )}
+                        <span className="block text-xs text-gray-400 mt-0.5">
+                          {dogCount} dog{dogCount !== 1 ? 's' : ''} confirmed
+                        </span>
                       </span>
-                    </span>
-                    <span className="text-xs text-green-600 flex-shrink-0 ml-3">Full view →</span>
-                  </button>
+                      <span className="text-xs text-green-600 flex-shrink-0 ml-3">View →</span>
+                    </button>
+                    {isToday && (
+                      <button
+                        onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
+                        className="w-full bg-green-600 text-white py-3 text-sm font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <span>🥾</span><span>Start run</span>
+                      </button>
+                    )}
+                  </div>
                 )
               })}
             </div>

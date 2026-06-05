@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { getHikeForDate, type HikeDetail, type HikeBooking } from '@/lib/adminData'
-import { formatFull } from '@/lib/booking'
+import { formatFull, todayIso } from '@/lib/booking'
 import { uploadHikePhoto, getPhotoUrl, type HikePhoto } from '@/lib/photos'
 
 export default function HikeDetailPage() {
@@ -25,6 +25,8 @@ export default function HikeDetailPage() {
   const [uploadCaption, setUploadCaption] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -123,6 +125,20 @@ export default function HikeDetailPage() {
     setUploading(false)
   }
 
+  async function handleDeletePhoto(photoId: string) {
+    const photo = photos.find(p => p.id === photoId)
+    if (!photo) return
+    setDeleting(true)
+
+    // Delete from storage first, then the DB row.
+    await supabase.storage.from('dog-photos').remove([photo.storagePath])
+    await supabase.from('hike_photos').delete().eq('id', photoId)
+
+    setPhotos(prev => prev.filter(p => p.id !== photoId))
+    setConfirmDeleteId(null)
+    setDeleting(false)
+  }
+
   if (!ready) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center px-6">
@@ -137,6 +153,8 @@ export default function HikeDetailPage() {
 
   const dogById: Record<string, string> = {}
   for (const b of hike?.bookings ?? []) dogById[b.dogId] = b.dogName
+
+  const isRunDay = date >= todayIso()
 
   return (
     <main className="min-h-screen bg-white px-6 py-10">
@@ -157,6 +175,17 @@ export default function HikeDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Start run button — only on/after hike day */}
+        {hike && hike.bookings.length > 0 && isRunDay && (
+          <button
+            onClick={() => router.push(`/staff/hikes/${date}/run`)}
+            className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-base hover:bg-green-700 transition-colors mb-6 flex items-center justify-center gap-2"
+          >
+            <span>🥾</span>
+            <span>Start run</span>
+          </button>
+        )}
 
         {!hike || hike.bookings.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 px-6 py-10 text-center">
@@ -207,7 +236,6 @@ export default function HikeDetailPage() {
             {/* Upload form */}
             {showUploadForm && (
               <div className="rounded-2xl border border-gray-200 p-4 mb-4 space-y-4">
-                {/* File picker */}
                 <div>
                   <label className="block text-xs text-gray-500 mb-2">Photo</label>
                   <input
@@ -224,7 +252,6 @@ export default function HikeDetailPage() {
                   )}
                 </div>
 
-                {/* Dog tag */}
                 <div>
                   <label className="block text-xs text-gray-500 mb-2">Tag a dog (optional)</label>
                   <select
@@ -239,7 +266,6 @@ export default function HikeDetailPage() {
                   </select>
                 </div>
 
-                {/* Caption */}
                 <div>
                   <label className="block text-xs text-gray-500 mb-2">Caption (optional)</label>
                   <input
@@ -267,11 +293,19 @@ export default function HikeDetailPage() {
             {photos.length > 0 ? (
               <div className="grid grid-cols-2 gap-2">
                 {photos.map(p => (
-                  <div key={p.id}>
+                  <div key={p.id} className="relative">
                     <div
                       className="w-full rounded-xl bg-cover bg-center bg-gray-100"
                       style={{ backgroundImage: `url(${getPhotoUrl(p.storagePath)})`, height: 120 }}
                     />
+                    {/* Delete button */}
+                    <button
+                      onClick={() => setConfirmDeleteId(p.id)}
+                      className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center text-white text-xs hover:bg-black/70"
+                      aria-label="Delete photo"
+                    >
+                      🗑
+                    </button>
                     {(p.dogId && dogById[p.dogId]) && (
                       <p className="text-[10px] text-green-700 font-medium mt-1 truncate">{dogById[p.dogId]}</p>
                     )}
@@ -291,6 +325,29 @@ export default function HikeDetailPage() {
         )}
 
       </div>
+
+      {/* Delete confirmation overlay */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+          <div className="w-full bg-white rounded-t-3xl p-6 max-w-sm mx-auto">
+            <p className="text-base font-semibold text-gray-900 mb-2">Delete this photo?</p>
+            <p className="text-sm text-gray-500 mb-6">This will permanently remove the photo from storage and cannot be undone.</p>
+            <button
+              onClick={() => handleDeletePhoto(confirmDeleteId)}
+              disabled={deleting}
+              className="w-full bg-red-600 text-white py-4 rounded-2xl text-base font-semibold mb-3 disabled:opacity-50"
+            >
+              {deleting ? 'Deleting…' : 'Delete photo'}
+            </button>
+            <button
+              onClick={() => setConfirmDeleteId(null)}
+              className="w-full py-4 rounded-2xl text-base font-medium text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
@@ -302,27 +359,15 @@ function BookingDetailRow({ booking: b, index }: { booking: HikeBooking; index: 
         <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-xs font-semibold flex-shrink-0 mt-0.5">
           {index}
         </div>
-
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900">{b.dogName}</p>
           <p className="text-xs text-gray-700 mt-0.5">{b.ownerName ?? '—'}</p>
-          {b.ownerPhone && (
-            <p className="text-xs text-gray-500">{b.ownerPhone}</p>
-          )}
-          {b.ownerAddress && (
-            <p className="text-xs text-gray-500 mt-0.5">{b.ownerAddress}</p>
-          )}
-          {b.zoneName && (
-            <p className="text-[11px] text-gray-400 mt-1">{b.zoneName}</p>
-          )}
-
+          {b.ownerPhone && <p className="text-xs text-gray-500">{b.ownerPhone}</p>}
+          {b.ownerAddress && <p className="text-xs text-gray-500 mt-0.5">{b.ownerAddress}</p>}
+          {b.zoneName && <p className="text-[11px] text-gray-400 mt-1">{b.zoneName}</p>}
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {b.pickupMethod && (
-              <MethodChip label="Pickup" method={b.pickupMethod} />
-            )}
-            {b.dropoffMethod && (
-              <MethodChip label="Drop-off" method={b.dropoffMethod} />
-            )}
+            {b.pickupMethod && <MethodChip label="Pickup" method={b.pickupMethod} />}
+            {b.dropoffMethod && <MethodChip label="Drop-off" method={b.dropoffMethod} />}
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
               confirmed
             </span>

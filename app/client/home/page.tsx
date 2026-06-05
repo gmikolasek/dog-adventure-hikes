@@ -17,6 +17,8 @@ type BookingCard = {
   status: string
 }
 
+type TrailPackSummary = { total: number; soonestExpiry: string | null }
+
 export default function ClientHome() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
@@ -25,6 +27,7 @@ export default function ClientHome() {
   const [zone, setZone] = useState<Zone | null>(null)
   const [upcoming, setUpcoming] = useState<BookingCard[]>([])
   const [past, setPast] = useState<BookingCard[]>([])
+  const [trailPack, setTrailPack] = useState<TrailPackSummary | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -95,6 +98,26 @@ export default function ClientHome() {
         pastList.sort((a, b) => b.date.localeCompare(a.date)) // newest first
         setUpcoming(upcomingList)
         setPast(pastList)
+      }
+
+      // Trail Pack credits
+      const nowIso = new Date().toISOString()
+      const { data: creditRows } = await supabase
+        .from('trail_pack_credits')
+        .select('credits_remaining, expires_at')
+        .eq('owner_id', session.user.id)
+        .gt('credits_remaining', 0)
+      const activeCredits = (creditRows ?? []).filter(
+        (r: { credits_remaining: number; expires_at: string | null }) =>
+          !r.expires_at || r.expires_at > nowIso
+      )
+      if (activeCredits.length > 0) {
+        const total = activeCredits.reduce((s: number, r: { credits_remaining: number }) => s + r.credits_remaining, 0)
+        const soonest = activeCredits
+          .map((r: { expires_at: string | null }) => r.expires_at)
+          .filter(Boolean)
+          .sort()[0] ?? null
+        setTrailPack({ total, soonestExpiry: soonest })
       }
 
       setReady(true)
@@ -200,6 +223,32 @@ export default function ClientHome() {
             </div>
           </div>
         </div>
+
+        {/* Trail Pack credits card — only when credits are active */}
+        {trailPack && trailPack.total > 0 && (
+          <button
+            onClick={() => router.push('/client/history')}
+            className="w-full rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-4 text-left hover:bg-amber-100 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 flex-shrink-0">
+                <span className="text-lg">🎒</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-amber-700 font-medium">Trail Pack</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {trailPack.total} credit{trailPack.total !== 1 ? 's' : ''} remaining
+                </p>
+                {trailPack.soonestExpiry && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Expires {new Date(trailPack.soonestExpiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                )}
+              </div>
+              <span className="text-xs text-amber-600 flex-shrink-0">History →</span>
+            </div>
+          </button>
+        )}
 
         {/* Book a hike */}
         <button
