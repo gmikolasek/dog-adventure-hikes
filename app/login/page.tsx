@@ -83,6 +83,7 @@ async function verifyOtp() {
                 onKeyDown={e => { if (e.key === 'Enter' && !loading && phone.length >= 7) sendOtp() }}
                 placeholder="8800 0000"
                 className="flex-1 rounded-r-lg border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                style={{ color: '#171717', backgroundColor: '#FFFFFF', WebkitTextFillColor: '#171717' }}
               />
             </div>
             <p className="text-xs text-gray-400 mb-6">We&apos;ll send you a verification code</p>
@@ -114,6 +115,7 @@ async function verifyOtp() {
               placeholder="000000"
               maxLength={6}
               className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-green-500 mb-6"
+              style={{ color: '#171717', backgroundColor: '#FFFFFF', WebkitTextFillColor: '#171717' }}
             />
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
             <button
