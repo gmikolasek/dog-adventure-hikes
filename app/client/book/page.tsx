@@ -252,7 +252,7 @@ export default function BookHike() {
                       padding: '14px 16px', borderRadius: 12, textAlign: 'left', cursor: disabled ? 'default' : 'pointer',
                       backgroundColor: started ? T.disabledBg : active ? T.selectedBg : '#fff',
                       border: active ? `2px solid ${T.forest}` : `1px solid ${T.cardBorder}`,
-                      opacity: full ? 0.5 : 1,
+                      opacity: full ? 0.5 : 1, outline: 'none',
                     }}
                   >
                     <span style={{ minWidth: 0 }}>
@@ -321,7 +321,7 @@ export default function BookHike() {
                       cursor: alreadyBooked ? 'default' : 'pointer',
                       backgroundColor: active && !alreadyBooked ? T.selectedBg : '#fff',
                       border: active && !alreadyBooked ? `2px solid ${T.forest}` : `1px solid ${T.cardBorder}`,
-                      opacity: alreadyBooked ? 0.5 : 1,
+                      opacity: alreadyBooked ? 0.5 : 1, outline: 'none',
                     }}
                   >
                     {/* Checkbox */}
@@ -403,6 +403,7 @@ function MethodCard({ active, onClick, title, desc }: {
         padding: '12px 14px', borderRadius: 12, textAlign: 'left', cursor: 'pointer',
         backgroundColor: active ? T.selectedBg : '#fff',
         border: active ? `2px solid ${T.forest}` : `1px solid ${T.cardBorder}`,
+        outline: 'none',
       }}
     >
       <span style={{ minWidth: 0, flex: 1 }}>

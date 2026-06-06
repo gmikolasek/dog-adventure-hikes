@@ -10,17 +10,77 @@ import {
   formatFull, type HikeDay, type CreditRow, type Method,
 } from '@/lib/booking'
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const T = {
+  bg:         '#F5F0E8',
+  forest:     '#26452B',
+  moss:       '#4D6B46',
+  brown:      '#3B2A1F',
+  muted:      '#8A7E72',
+  cardBorder: '#E8E2D9',
+  divider:    '#F0EBE3',
+  badgeBg:    '#EEE9E0',
+  selectedBg: '#E8F0E5',
+  orange:     '#E08A3E',
+  sand:       '#E6C89A',
+  packBg:     '#F5F0E0',
+} as const
+
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+function IconArrowLeft({ size = 16, color = T.forest }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 12H5M12 5l-7 7 7 7" />
+    </svg>
+  )
+}
+
+function IconCheck({ size = 14, color = '#fff' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
+function IconTag({ size = 16, color = T.orange }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IconInfo({ size = 15, color = T.orange }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="8" strokeWidth="3" />
+      <line x1="12" y1="12" x2="12" y2="16" />
+    </svg>
+  )
+}
+
+// ─── Page shell ───────────────────────────────────────────────────────────────
+
 export default function Payment() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex items-center justify-center px-6">
+        <p style={{ color: T.muted, fontSize: 14 }}>Loading…</p>
       </main>
     }>
       <PaymentInner />
     </Suspense>
   )
 }
+
+// ─── Inner page ───────────────────────────────────────────────────────────────
 
 function PaymentInner() {
   const router = useRouter()
@@ -42,8 +102,6 @@ function PaymentInner() {
   const [confirming, setConfirming] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState('')
-  // Guard against double-submit: React state updates are async, so the button
-  // isn't disabled until after the first await. A ref is synchronous.
   const confirmLock = useRef(false)
 
   useEffect(() => {
@@ -73,13 +131,11 @@ function PaymentInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
-  // ---- Pricing breakdown ----
   const dogCount = dogs.length
   const creditsToUse = Math.min(availableCredits, dogCount)
   const dogsToCharge = dogCount - creditsToUse
   const canBuyPack = dogsToCharge >= 1
   const applyPack = buyTrailPack && canBuyPack
-  // The pack covers one charged hike today; extra charged dogs pay normally.
   const total = applyPack
     ? TRAIL_PACK_PRICE + Math.max(0, dogsToCharge - 1) * PRICE_PER_DOG
     : dogsToCharge * PRICE_PER_DOG
@@ -90,7 +146,6 @@ function PaymentInner() {
     setConfirming(true)
     setError('')
 
-    // Best-effort capacity guard (DB doesn't enforce it during placeholder payment).
     const counts = await getBookedCounts()
     if (!hikeDay.allow_over_capacity && spotsLeft(hikeDay, counts) < dogCount) {
       setError('This day just filled up. Please pick another day.')
@@ -134,7 +189,6 @@ function PaymentInner() {
       return
     }
 
-    // Deduct any auto-applied credits, then bank the new pack's credits.
     if (creditsToUse > 0) await deductCredits(creditRows, creditsToUse)
     if (applyPack) await addTrailPack(ownerId)
 
@@ -144,28 +198,30 @@ function PaymentInner() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex items-center justify-center px-6">
+        <p style={{ color: T.muted, fontSize: 14 }}>Loading…</p>
       </main>
     )
   }
 
   if (confirmed) {
     return (
-      <main className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
+      <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-6">
-            <span className="text-4xl">✓</span>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: T.selectedBg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: T.forest, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconCheck size={18} color="#fff" />
+            </div>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-2">Booking confirmed</h1>
-          <p className="text-gray-500 text-sm leading-relaxed mb-8">
+          <h1 style={{ color: T.brown, fontWeight: 700, fontSize: 24, fontFamily: FONT, marginBottom: 8 }}>Booking confirmed</h1>
+          <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT, lineHeight: 1.6, marginBottom: 32 }}>
             {hikeDay && formatFull(hikeDay.date)} · {dogCount} dog{dogCount > 1 ? 's' : ''}.
             {applyPack && ` Your Trail Pack added ${TRAIL_PACK_CREDITS} credits.`}
             {!applyPack && creditsToUse > 0 && ` ${creditsToUse} credit${creditsToUse > 1 ? 's' : ''} used.`}
           </p>
           <button
             onClick={() => router.push('/client/home')}
-            className="w-full bg-green-600 text-white py-3.5 rounded-xl font-medium text-sm hover:bg-green-700 transition-colors"
+            style={{ width: '100%', backgroundColor: T.forest, color: '#fff', borderRadius: 12, padding: '15px 0', fontFamily: FONT, fontWeight: 600, fontSize: 15, border: 'none', cursor: 'pointer' }}
           >
             Back to home
           </button>
@@ -175,119 +231,153 @@ function PaymentInner() {
   }
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
-      <div className="w-full max-w-sm mx-auto">
+    <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen pb-12">
+      <div className="w-full max-w-sm mx-auto px-5">
 
-        <button onClick={() => router.push('/client/book')} className="text-sm text-gray-500 hover:text-gray-700 mb-6">
-          ← Back
-        </button>
+        {/* ── Header ── */}
+        <div className="flex items-center pt-12 pb-6">
+          <button
+            onClick={() => router.push('/client/book')}
+            style={{ backgroundColor: T.cardBorder, borderRadius: '50%', width: 36, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <IconArrowLeft size={16} color={T.forest} />
+          </button>
+          <div style={{ width: 36 }} />
+        </div>
 
-        <h1 className="text-2xl font-semibold text-gray-900 mb-1">Payment</h1>
-        <p className="text-gray-500 text-sm mb-6">Review your booking</p>
+        {/* ── Title ── */}
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ color: T.brown, fontWeight: 700, fontSize: 26, fontFamily: FONT, lineHeight: 1.2, marginBottom: 4 }}>Payment</h1>
+          <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT }}>Review your booking</p>
+        </div>
 
-        {/* Order summary */}
-        <div className="rounded-2xl border border-gray-200 p-5 mb-4">
-          <p className="text-xs text-gray-400 mb-3">Order summary</p>
+        {/* ── Order summary ── */}
+        <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 12 }}>
+          <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT, fontWeight: 600, letterSpacing: '0.05em', marginBottom: 12 }}>ORDER SUMMARY</p>
 
           <SummaryRow label="Hike day" value={hikeDay ? formatFull(hikeDay.date) : ''} />
           {hikeDay?.destination_override && <SummaryRow label="Destination" value={hikeDay.destination_override} />}
           <SummaryRow label="Pickup" value={pickup ?? ''} capitalize />
           <SummaryRow label="Drop-off" value={dropoff ?? ''} capitalize />
 
-          <div className="space-y-2 my-3 pt-3 border-t border-gray-100">
+          {/* Dogs */}
+          <div style={{ borderTop: `1px solid ${T.divider}`, marginTop: 10, paddingTop: 10 }}>
             {dogs.map((dog, i) => {
               const covered = i < creditsToUse
               return (
-                <div key={dog.id} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">{dog.name}</span>
+                <div key={dog.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>{dog.name}</span>
                   {covered ? (
-                    <span className="text-green-600 text-xs font-medium">Credit applied</span>
+                    <span style={{ backgroundColor: T.selectedBg, color: T.forest, borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500 }}>
+                      Credit applied
+                    </span>
                   ) : (
-                    <span className="text-gray-900">₮{PRICE_PER_DOG.toLocaleString()}</span>
+                    <span style={{ color: T.brown, fontSize: 14, fontFamily: FONT }}>₮{PRICE_PER_DOG.toLocaleString()}</span>
                   )}
                 </div>
               )
             })}
           </div>
 
+          {/* Pack discount */}
           {applyPack && (
-            <div className="flex items-center justify-between text-sm text-green-700 mb-3">
-              <span>Trail Pack discount</span>
-              <span>−₮{TRAIL_PACK_SAVING.toLocaleString()}</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ color: T.moss, fontSize: 14, fontFamily: FONT }}>Trail Pack discount</span>
+              <span style={{ color: T.moss, fontSize: 14, fontFamily: FONT }}>−₮{TRAIL_PACK_SAVING.toLocaleString()}</span>
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-            <span className="text-sm font-semibold text-gray-900">Total</span>
-            <span className="text-lg font-semibold text-gray-900">₮{total.toLocaleString()}</span>
+          {/* Total */}
+          <div style={{ borderTop: `1px solid ${T.cardBorder}`, marginTop: 8, paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>Total</span>
+            <span style={{ color: T.forest, fontWeight: 700, fontSize: 18, fontFamily: FONT }}>₮{total.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Trail Pack nudge */}
+        {/* ── Trail Pack notice ── */}
         {canBuyPack && (
           <button
             type="button"
             onClick={() => setBuyTrailPack(v => !v)}
-            className={`w-full text-left rounded-2xl border-2 p-4 mb-4 transition-colors ${
-              applyPack ? 'border-green-500 bg-green-50' : 'border-green-200 bg-green-50'
-            }`}
+            style={{
+              width: '100%', textAlign: 'left', backgroundColor: T.packBg,
+              border: `1px solid ${T.sand}`, borderRadius: 12, padding: '12px 16px',
+              marginBottom: 12, cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}
           >
-            <div className="flex items-start gap-3">
-              <span className={`w-5 h-5 mt-0.5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
-                applyPack ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white'
-              }`}>
-                {applyPack && <span className="text-xs">✓</span>}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Add a Trail Pack 🎒</p>
-                <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
-                  4 hikes for ₮{TRAIL_PACK_PRICE.toLocaleString()} — save ₮{TRAIL_PACK_SAVING.toLocaleString()}.
-                  Covers today and banks {TRAIL_PACK_CREDITS} credits for future hikes.
-                </p>
-              </div>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: applyPack ? T.forest : '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+              {applyPack
+                ? <IconCheck size={13} color="#fff" />
+                : <IconTag size={14} color={T.orange} />
+              }
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT, marginBottom: 3 }}>
+                Add a Trail Pack
+              </p>
+              <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT, lineHeight: 1.5 }}>
+                4 hikes for ₮{TRAIL_PACK_PRICE.toLocaleString()} — save ₮{TRAIL_PACK_SAVING.toLocaleString()}.
+                Covers today and banks {TRAIL_PACK_CREDITS} credits for future hikes.
+              </p>
             </div>
           </button>
         )}
 
         {availableCredits > 0 && (
-          <p className="text-xs text-gray-500 mb-4 px-1">
+          <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT, marginBottom: 16, paddingLeft: 4 }}>
             You have {availableCredits} Trail Pack credit{availableCredits > 1 ? 's' : ''}.
             {creditsToUse > 0 && ` ${creditsToUse} will be used for this booking.`}
           </p>
         )}
 
-        {/* Payment method */}
-        <p className="text-sm font-medium text-gray-700 mb-2">Payment method</p>
-        <div className="rounded-2xl border-2 border-green-500 bg-green-50 p-4 mb-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-            <span className="text-[11px] font-bold text-green-700">Store<br/>Pay</span>
+        {/* ── Payment method ── */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 3, height: 16, backgroundColor: T.forest, borderRadius: 2, flexShrink: 0 }} />
+            <p style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>Payment method</p>
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-900">Storepay</p>
-            <p className="text-xs text-gray-500">Buy now, pay later (coming soon)</p>
+          <div style={{ backgroundColor: '#fff', border: `2px solid ${T.forest}`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ backgroundColor: T.forest, borderRadius: 6, padding: '3px 7px', flexShrink: 0 }}>
+              <span style={{ color: '#fff', fontSize: 11, fontFamily: FONT, fontWeight: 700, lineHeight: 1.3, display: 'block', textAlign: 'center' }}>
+                Store<br />Pay
+              </span>
+            </div>
+            <div>
+              <p style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT, marginBottom: 2 }}>Storepay</p>
+              <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>Buy now, pay later (coming soon)</p>
+            </div>
           </div>
         </div>
 
-        {/* Cancellation reminder */}
-        <div className="rounded-xl bg-gray-50 p-4 mb-6">
-          <p className="text-xs font-medium text-gray-700 mb-1">Cancellation policy</p>
-          <p className="text-xs text-gray-500 leading-relaxed">
+        {/* ── Cancellation policy ── */}
+        <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <IconInfo size={15} color={T.orange} />
+            <p style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>Cancellation policy</p>
+          </div>
+          <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT, lineHeight: 1.5 }}>
             Before 5pm the day before the hike (UB time): fee held as 1 Trail Pack credit, valid
             60 days. After 5pm the day before or no-show: full fee forfeited. Service-cancelled
             hikes are fully credited.
           </p>
         </div>
 
-        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+        {error && <p style={{ color: '#C1562D', fontSize: 13, fontFamily: FONT, marginBottom: 12 }}>{error}</p>}
 
+        {/* ── Confirm button ── */}
         <button
           onClick={confirm}
           disabled={confirming}
-          className="w-full bg-green-600 text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+          style={{
+            width: '100%', backgroundColor: T.forest, color: '#fff',
+            borderRadius: 12, padding: '15px 0', border: 'none',
+            fontFamily: FONT, fontWeight: 600, fontSize: 15,
+            cursor: confirming ? 'default' : 'pointer', opacity: confirming ? 0.6 : 1,
+          }}
         >
           {confirming ? 'Confirming…' : total === 0 ? 'Confirm with credit' : `Confirm & pay ₮${total.toLocaleString()}`}
         </button>
-        <p className="text-xs text-gray-400 text-center mt-3">
+        <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT, textAlign: 'center', fontStyle: 'italic', marginTop: 10 }}>
           Storepay isn&apos;t live yet — tapping confirms your booking without a real charge.
         </p>
 
@@ -296,11 +386,13 @@ function PaymentInner() {
   )
 }
 
+// ─── Summary row ──────────────────────────────────────────────────────────────
+
 function SummaryRow({ label, value, capitalize }: { label: string; value: string; capitalize?: boolean }) {
   return (
-    <div className="flex items-center justify-between text-sm mb-2">
-      <span className="text-gray-600">{label}</span>
-      <span className={`font-medium text-gray-900 ${capitalize ? 'capitalize' : ''}`}>{value}</span>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      <span style={{ color: T.muted, fontSize: 14, fontFamily: FONT }}>{label}</span>
+      <span style={{ color: T.brown, fontSize: 14, fontFamily: FONT, textTransform: capitalize ? 'capitalize' : 'none' }}>{value}</span>
     </div>
   )
 }
