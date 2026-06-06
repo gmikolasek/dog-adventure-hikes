@@ -290,7 +290,7 @@ export default function BookHike() {
                 <div style={{ backgroundColor: T.noticeBg, border: `1px solid ${T.noticeBdr}`, borderRadius: 10, padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 4 }}>
                   <IconInfo size={14} color={T.orange} />
                   <p style={{ color: T.orange, fontSize: 13, fontFamily: FONT, lineHeight: 1.5, margin: 0 }}>
-                    Bookings for dates marked &ldquo;Closed&rdquo; are no longer available. Contact us directly if you&apos;d like to join a future hike.
+                    Today&apos;s hike is already underway. Call us — there may still be room if you can meet the van.
                   </p>
                 </div>
               )}
