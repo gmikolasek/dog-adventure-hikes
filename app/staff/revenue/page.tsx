@@ -70,12 +70,6 @@ export default function RevenuePage() {
           >
             ←
           </button>
-          <div
-            style={{ backgroundColor: `${T.forestGreen}18` }}
-            className="inline-flex items-center justify-center w-10 h-10 rounded-full flex-shrink-0"
-          >
-            <span className="text-xl">💰</span>
-          </div>
           <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-lg leading-tight">
             Revenue
           </h1>
@@ -127,8 +121,8 @@ export default function RevenuePage() {
                       <div className="flex-shrink-0 text-right">
                         {isCredit ? (
                           <span
-                            style={{ backgroundColor: `${T.moss}18`, color: T.moss, borderRadius: 20, fontFamily: FONT }}
-                            className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium"
+                            style={{ backgroundColor: '#E8F0E5', color: T.moss, borderRadius: 20, fontFamily: FONT, padding: '4px 12px', fontSize: 13 }}
+                            className="inline-flex items-center font-medium"
                           >
                             Credit used
                           </span>
