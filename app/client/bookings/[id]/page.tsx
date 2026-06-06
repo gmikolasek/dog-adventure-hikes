@@ -24,6 +24,7 @@ type BookingDetail = {
   creditUsed: number
   cancelledAt: string | null
   droppedOffAt: string | null
+  dropoffNote: string | null
 }
 
 // Cutoff: 5pm Ulaanbaatar time (UTC+8) the day before the hike = 09:00 UTC.
@@ -91,7 +92,7 @@ export default function BookingDetailPage() {
       // alongside RLS — if either were misconfigured the other still blocks access.
       const { data: bRow } = await supabase
         .from('bookings')
-        .select('id, owner_id, dog_id, hike_day_id, status, pickup_method, dropoff_method, amount_charged, credit_used, cancelled_at, dropped_off_at')
+        .select('id, owner_id, dog_id, hike_day_id, status, pickup_method, dropoff_method, amount_charged, credit_used, cancelled_at, dropped_off_at, dropoff_note')
         .eq('id', bookingId)
         .eq('owner_id', session.user.id)
         .maybeSingle()
@@ -131,6 +132,7 @@ export default function BookingDetailPage() {
         creditUsed: bRow.credit_used ?? 0,
         cancelledAt: bRow.cancelled_at ?? null,
         droppedOffAt: bRow.dropped_off_at ?? null,
+        dropoffNote: bRow.dropoff_note ?? null,
       }
       setBooking(detail)
       setEditPickup(detail.pickupMethod)
@@ -379,6 +381,14 @@ export default function BookingDetailPage() {
                 Dropped off {new Date(booking.droppedOffAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Guide note — shown when completed and a note was left */}
+        {isCompleted && booking.dropoffNote && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 p-5 mb-5">
+            <p className="text-xs font-semibold text-green-700 mb-1.5">Note from your guide</p>
+            <p className="text-sm text-gray-800 leading-relaxed">{booking.dropoffNote}</p>
           </div>
         )}
 

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { formatFull } from '@/lib/booking'
+import { uploadHikePhoto } from '@/lib/photos'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -57,6 +58,11 @@ export default function RunPage() {
   const [mode, setMode] = useState<RunMode>('pickup')
   const [busy, setBusy] = useState<string | null>(null) // booking id being updated
   const [confirmNoShow, setConfirmNoShow] = useState<string | null>(null) // booking id
+
+  // Dropoff extras: photo + note, keyed by booking id
+  const [dropoffPhoto, setDropoffPhoto] = useState<Record<string, File>>({})
+  const [dropoffNote, setDropoffNote] = useState<Record<string, string>>({})
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -171,9 +177,27 @@ export default function RunPage() {
   async function confirmDropoff(bookingId: string) {
     setBusy(bookingId)
     const now = new Date().toISOString()
+    const note = dropoffNote[bookingId]?.trim() || null
+    const photoFile = dropoffPhoto[bookingId]
+
+    // Upload photo first if one was chosen
+    if (photoFile) {
+      const booking = bookings.find(b => b.id === bookingId)
+      const result = await uploadHikePhoto(photoFile, hikeDayId)
+      if (result) {
+        await supabase.from('hike_photos').insert({
+          hike_day_id: hikeDayId,
+          dog_id: booking?.dogId ?? null,
+          storage_path: result.storagePath,
+          caption: null,
+          taken_at: now,
+        })
+      }
+    }
+
     const { error } = await supabase
       .from('bookings')
-      .update({ dropped_off_at: now })
+      .update({ dropped_off_at: now, dropoff_note: note })
       .eq('id', bookingId)
     if (!error) {
       setBookings(prev => {
@@ -183,6 +207,9 @@ export default function RunPage() {
         setMode(deriveMode(updated))
         return updated
       })
+      // Clear per-booking extras
+      setDropoffPhoto(prev => { const n = { ...prev }; delete n[bookingId]; return n })
+      setDropoffNote(prev => { const n = { ...prev }; delete n[bookingId]; return n })
     }
     setBusy(null)
   }
@@ -444,10 +471,56 @@ export default function RunPage() {
                 </span>
               )}
 
+              {/* Optional photo */}
+              <div className="mt-5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) setDropoffPhoto(prev => ({ ...prev, [nextDropoff.id]: file }))
+                    e.target.value = ''
+                  }}
+                />
+                {dropoffPhoto[nextDropoff.id] ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2">
+                    <span className="text-sm text-blue-700 flex-1 truncate">
+                      📷 {dropoffPhoto[nextDropoff.id].name}
+                    </span>
+                    <button
+                      onClick={() => setDropoffPhoto(prev => { const n = { ...prev }; delete n[nextDropoff.id]; return n })}
+                      className="text-xs text-gray-400"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-500 font-medium"
+                  >
+                    📷 Add photo (optional)
+                  </button>
+                )}
+              </div>
+
+              {/* Optional note */}
+              <textarea
+                maxLength={200}
+                placeholder="Note for owner (optional)"
+                value={dropoffNote[nextDropoff.id] ?? ''}
+                onChange={e => setDropoffNote(prev => ({ ...prev, [nextDropoff.id]: e.target.value }))}
+                rows={2}
+                className="w-full mt-3 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:border-blue-300"
+              />
+
               <button
                 onClick={() => confirmDropoff(nextDropoff.id)}
                 disabled={busy === nextDropoff.id}
-                className="w-full mt-5 bg-blue-600 text-white py-5 rounded-2xl text-lg font-bold disabled:opacity-50 active:bg-blue-700"
+                className="w-full mt-3 bg-blue-600 text-white py-5 rounded-2xl text-lg font-bold disabled:opacity-50 active:bg-blue-700"
               >
                 {busy === nextDropoff.id ? 'Saving…' : 'Confirm drop-off ✓'}
               </button>
