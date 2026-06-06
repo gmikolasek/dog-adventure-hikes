@@ -243,12 +243,22 @@ export default function StaffDashboard() {
                 const isToday = hike.date === today
                 const dateLabel = isToday ? 'Today' : formatShort(hike.date)
                 const dogCount = hike.bookings.length
+                const s = isToday ? dropoffStatsByDay[hike.hikeDayId] : undefined
+                const hasBanner = isToday && !!s
+                const cardRadius = hasBanner ? '16px 16px 0 0' : 16
                 return (
-                  <div key={hike.date} style={{ backgroundColor: '#fff', borderRadius: 16, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
+                  <div key={hike.date}>
                     <button
                       onClick={() => router.push(`/staff/hikes/${hike.date}`)}
                       className="w-full text-left"
-                      style={{ padding: 16 }}
+                      style={{
+                        padding: 16,
+                        backgroundColor: '#fff',
+                        border: `1px solid ${T.cardBorder}`,
+                        borderBottom: hasBanner ? 'none' : `1px solid ${T.cardBorder}`,
+                        borderRadius: cardRadius,
+                        display: 'block',
+                      }}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -269,19 +279,28 @@ export default function StaffDashboard() {
                     </button>
 
                     {isToday && (() => {
-                      const s = dropoffStatsByDay[hike.hikeDayId]
                       if (!s) return null
+                      const bannerBase: React.CSSProperties = {
+                        width: '100%',
+                        border: `1px solid ${T.cardBorder}`,
+                        borderTop: 'none',
+                        borderRadius: '0 0 16px 16px',
+                        padding: '10px 16px',
+                        fontFamily: FONT,
+                        fontSize: 14,
+                        fontWeight: 700,
+                      }
                       if (s.complete === s.total && s.total > 0) return (
-                        <div style={{ backgroundColor: T.completeBg, borderTop: `1px solid ${T.cardBorder}`, padding: '10px 16px' }}
+                        <div style={{ ...bannerBase, backgroundColor: T.completeBg }}
                           className="flex items-center justify-center gap-2">
                           <IconCheck size={15} color={T.moss} />
-                          <span style={{ color: T.forest, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>Hike complete</span>
+                          <span style={{ color: T.forest }}>Hike complete</span>
                         </div>
                       )
                       if (s.complete > 0) return (
                         <button
                           onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
-                          style={{ width: '100%', backgroundColor: '#2B5BA8', borderTop: `1px solid ${T.cardBorder}`, padding: '10px 16px', color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: FONT }}
+                          style={{ ...bannerBase, backgroundColor: '#2B5BA8', color: '#fff' }}
                           className="flex items-center justify-center gap-2"
                         >
                           Hike in progress · {s.complete} of {s.total} dropped off
@@ -290,7 +309,7 @@ export default function StaffDashboard() {
                       return (
                         <button
                           onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
-                          style={{ width: '100%', backgroundColor: T.forest, borderTop: `1px solid ${T.cardBorder}`, padding: '10px 16px', color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: FONT }}
+                          style={{ ...bannerBase, backgroundColor: T.forest, color: '#fff' }}
                           className="flex items-center justify-center gap-2"
                         >
                           Start hike
@@ -367,7 +386,7 @@ function Stat({ value, label, icon, onClick }: { value: number; label: string; i
   return (
     <button
       onClick={onClick}
-      style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 16, textAlign: 'left', width: '100%', fontFamily: FONT }}
+      style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 16, textAlign: 'left', width: '100%', fontFamily: FONT, color: T.forest }}
     >
       <IconBubble>{icon}</IconBubble>
       <p style={{ color: T.forest, fontWeight: 700, fontSize: 28, fontFamily: FONT, marginTop: 8, lineHeight: 1 }}>
