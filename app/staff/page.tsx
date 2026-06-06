@@ -389,7 +389,7 @@ function Stat({ value, label, icon, onClick }: { value: number; label: string; i
       style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: 16, textAlign: 'left', width: '100%', fontFamily: FONT, color: T.forest }}
     >
       <IconBubble>{icon}</IconBubble>
-      <p style={{ color: T.forest, fontWeight: 700, fontSize: 28, fontFamily: FONT, marginTop: 8, lineHeight: 1 }}>
+      <p style={{ color: '#26452B', fontWeight: 700, fontSize: 28, fontFamily: FONT, marginTop: 8, lineHeight: 1 }}>
         {value}
       </p>
       <p style={{ color: T.muted, fontSize: 13, marginTop: 4 }}>{label}</p>
