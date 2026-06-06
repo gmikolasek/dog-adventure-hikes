@@ -103,9 +103,20 @@ export default function HistoryPage() {
         .eq('owner_id', session.user.id)
         .order('created_at', { ascending: true })
 
-      const packRows = (creditRows ?? []) as Array<{
+      const rawPackRows = (creditRows ?? []) as Array<{
         id: string; credits_remaining: number; expires_at: string | null; created_at: string
       }>
+
+      // Deduplicate: a fast double-submit can insert two near-identical rows
+      // within the same second. Keep the first of any group sharing a
+      // second-level created_at timestamp (they're the same logical purchase).
+      const seenSecond = new Set<string>()
+      const packRows = rawPackRows.filter(r => {
+        const key = r.created_at.slice(0, 19) // "YYYY-MM-DDTHH:MM:SS"
+        if (seenSecond.has(key)) return false
+        seenSecond.add(key)
+        return true
+      })
 
       // Helpers
       function bookingSlot(b: BookingRow | undefined): HikeSlot {

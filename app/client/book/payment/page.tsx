@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getUserState, landingRoute, type Dog } from '@/lib/userState'
@@ -42,6 +42,9 @@ function PaymentInner() {
   const [confirming, setConfirming] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState('')
+  // Guard against double-submit: React state updates are async, so the button
+  // isn't disabled until after the first await. A ref is synchronous.
+  const confirmLock = useRef(false)
 
   useEffect(() => {
     async function load() {
@@ -82,7 +85,8 @@ function PaymentInner() {
     : dogsToCharge * PRICE_PER_DOG
 
   async function confirm() {
-    if (!hikeDay) return
+    if (!hikeDay || confirmLock.current) return
+    confirmLock.current = true
     setConfirming(true)
     setError('')
 
@@ -91,6 +95,7 @@ function PaymentInner() {
     if (!hikeDay.allow_over_capacity && spotsLeft(hikeDay, counts) < dogCount) {
       setError('This day just filled up. Please pick another day.')
       setConfirming(false)
+      confirmLock.current = false
       return
     }
 
@@ -125,6 +130,7 @@ function PaymentInner() {
     if (insErr) {
       setError(insErr.message)
       setConfirming(false)
+      confirmLock.current = false
       return
     }
 
