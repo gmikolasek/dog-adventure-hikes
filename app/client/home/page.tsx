@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { getUserState, landingRoute, type Dog, type Profile } from '@/lib/userState'
 import { formatShort, todayIso } from '@/lib/booking'
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 type Zone = { name: string; description: string | null }
 type BookingCard = {
   id: string
@@ -17,8 +19,93 @@ type BookingCard = {
   status: string
   droppedOffAt: string | null
 }
-
 type TrailPackSummary = { total: number; soonestExpiry: string | null }
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+const T = {
+  bg:         '#F5F0E8',
+  forest:     '#26452B',
+  moss:       '#4D6B46',
+  orange:     '#E08A3E',
+  sand:       '#E6C89A',
+  brown:      '#3B2A1F',
+  cardBorder: '#E8E2D9',
+  badgeBg:    '#EEE9E0',
+  muted:      '#8A7E72',
+  warmSand:   '#F5F0E0',
+} as const
+
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+function greetingText(firstName: string) {
+  const h = new Date().getHours()
+  const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return firstName ? `Good ${part}, ${firstName}` : `Good ${part}`
+}
+
+// ── SVG icons ─────────────────────────────────────────────────────────────────
+
+function IconPaw({ size = 18, color = T.moss }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <circle cx="5.5" cy="5.5" r="2.5" />
+      <circle cx="18.5" cy="5.5" r="2.5" />
+      <circle cx="3.5" cy="11" r="2" />
+      <circle cx="20.5" cy="11" r="2" />
+      <path d="M12 13c-2.5 0-6 2.5-6 6 0 1.5 1 2 2 2h8c1 0 2-.5 2-2 0-3.5-3.5-6-6-6z" />
+    </svg>
+  )
+}
+
+function IconCalendar({ size = 18, color = T.moss }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  )
+}
+
+function IconPin({ size = 18, color = T.moss }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}
+
+function IconPerson({ size = 18, color = T.moss }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
+
+function IconSearch({ size = 18, color = T.moss }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  )
+}
+
+function IconTag({ size = 18, color = T.orange }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ClientHome() {
   const router = useRouter()
@@ -51,7 +138,6 @@ export default function ClientHome() {
         setZone(zoneRow as Zone | null)
       }
 
-      // All bookings (confirmed + cancelled + no_show) for this owner.
       const { data: bookingRows } = await supabase
         .from('bookings')
         .select('id, dog_id, hike_day_id, pickup_method, dropoff_method, status, dropped_off_at')
@@ -97,12 +183,11 @@ export default function ClientHome() {
         }
 
         upcomingList.sort((a, b) => a.date.localeCompare(b.date))
-        pastList.sort((a, b) => b.date.localeCompare(a.date)) // newest first
+        pastList.sort((a, b) => b.date.localeCompare(a.date))
         setUpcoming(upcomingList)
         setPast(pastList)
       }
 
-      // Trail Pack credits
       const nowIso = new Date().toISOString()
       const { data: creditRows } = await supabase
         .from('trail_pack_credits')
@@ -134,195 +219,233 @@ export default function ClientHome() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex items-center justify-center px-6">
+        <p style={{ color: T.muted }} className="text-sm">Loading…</p>
       </main>
     )
   }
 
-  const primary = dogs[0]
+  const primary = dogs[0] as Dog | undefined
   const firstName = profile?.name?.split(' ')[0] ?? ''
+  const nextHike = upcoming[0] ?? null
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
+    <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen px-5 pb-12">
       <div className="w-full max-w-sm mx-auto">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🐾</span>
-            <span className="text-sm font-semibold text-gray-900">Dog Adventure Hikes</span>
+        {/* ── Greeting header ── */}
+        <div className="flex items-start justify-between pt-12 pb-6">
+          <div>
+            <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm mb-0.5">
+              {greetingText(firstName)}
+            </p>
+            <h1 style={{ color: T.brown, fontWeight: 700, fontSize: 26, fontFamily: FONT }} className="leading-tight">
+              {primary?.name ?? firstName ?? 'Hey there'} 🐾
+            </h1>
+            <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm mt-0.5">
+              Ready for an adventure?
+            </p>
           </div>
-          <button onClick={signOut} className="text-xs text-gray-500 hover:text-gray-700">
+          <button
+            onClick={signOut}
+            style={{ color: T.muted, fontFamily: FONT }}
+            className="text-xs mt-1 flex-shrink-0"
+          >
             Sign out
           </button>
         </div>
 
-        {/* Hero: primary dog */}
-        {primary && (
-          <div className="rounded-2xl border border-gray-200 p-5 mb-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/client/profile')}
-                className="relative flex-shrink-0"
-                aria-label="Update dog photo"
-              >
-                <DogAvatar dog={primary} size={64} />
-                <div className="absolute bottom-0 right-0 w-5 h-5 bg-green-600 rounded-full flex items-center justify-center text-white shadow-sm" style={{ fontSize: 10 }}>
-                  📷
-                </div>
-              </button>
-              <div className="min-w-0">
-                <p className="text-xs text-gray-400">
-                  {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
+        {/* ── Next Hike hero card ── */}
+        {nextHike ? (
+          <div style={{ borderRadius: 16, overflow: 'hidden', minHeight: 200, position: 'relative', marginBottom: 20 }}>
+            {/* Background */}
+            {primary?.photo_url ? (
+              <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${primary.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center top' }} />
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, backgroundColor: T.forest }} />
+            )}
+            {/* Gradient overlay */}
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)' }} />
+            {/* Content */}
+            <div style={{ position: 'relative', padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minHeight: 200 }}>
+              <p style={{ color: T.sand, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', fontFamily: FONT, marginBottom: 6 }}>
+                NEXT HIKE
+              </p>
+              <p style={{ color: '#fff', fontWeight: 700, fontSize: 20, fontFamily: FONT, lineHeight: 1.2, marginBottom: 6 }}>
+                {nextHike.destination ?? 'Trail run'}
+              </p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <IconCalendar size={13} color="rgba(255,255,255,0.85)" />
+                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontFamily: FONT }}>
+                  {formatShort(nextHike.date)}
                 </p>
-                <h1 className="text-xl font-semibold text-gray-900 truncate">{primary.name}</h1>
-                {primary.breed && <p className="text-xs text-gray-500 truncate">{primary.breed}</p>}
+              </div>
+              {zone && (
+                <div className="flex items-center gap-1.5 mb-5">
+                  <IconPin size={13} color="rgba(255,255,255,0.85)" />
+                  <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontFamily: FONT }}>
+                    {zone.name}
+                  </p>
+                </div>
+              )}
+              {!zone && <div style={{ marginBottom: 20 }} />}
+              <div>
+                <button
+                  onClick={() => router.push(`/client/bookings/${nextHike.id}`)}
+                  style={{ backgroundColor: T.orange, color: '#fff', borderRadius: 20, padding: '8px 20px', fontSize: 14, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer' }}
+                >
+                  View Booking
+                </button>
               </div>
             </div>
-            <div className="mt-4">
-              <StatusBadge status={primary.approval_status} />
-              {primary.approval_status === 'approved_with_conditions' && primary.approval_conditions && (
-                <p className="text-xs text-gray-600 leading-relaxed mt-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
-                  <span className="font-medium text-amber-700">Conditions: </span>
-                  {primary.approval_conditions}
-                </p>
-              )}
+          </div>
+        ) : (
+          <div style={{ borderRadius: 16, overflow: 'hidden', backgroundColor: T.forest, minHeight: 180, position: 'relative', marginBottom: 20, padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', fontFamily: FONT, marginBottom: 8 }}>
+              NEXT HIKE
+            </p>
+            <p style={{ color: '#fff', fontWeight: 600, fontSize: 17, fontFamily: FONT, marginBottom: 16 }}>
+              No hikes booked yet
+            </p>
+            <div>
+              <button
+                onClick={() => router.push('/client/book')}
+                style={{ backgroundColor: T.orange, color: '#fff', borderRadius: 20, padding: '8px 20px', fontSize: 14, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer' }}
+              >
+                Book a Hike
+              </button>
             </div>
           </div>
         )}
 
-        {/* Other dogs */}
-        {dogs.length > 1 && (
-          <div className="rounded-2xl border border-gray-200 p-4 mb-4">
-            <p className="text-xs text-gray-400 mb-3">Your other dogs</p>
-            <div className="space-y-3">
-              {dogs.slice(1).map(dog => (
-                <div key={dog.id} className="flex items-center gap-3">
-                  <DogAvatar dog={dog} size={36} />
-                  <span className="text-sm font-medium text-gray-800 flex-1 truncate">{dog.name}</span>
-                  <StatusBadge status={dog.approval_status} small />
+        {/* ── Quick Actions ── */}
+        <div style={{ marginBottom: 20 }}>
+          <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 14, marginBottom: 10 }}>
+            Quick Actions
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            {([
+              { label: 'My Dog',     icon: <IconPaw size={18} />,    href: '/client/profile' },
+              { label: 'Find Hikes', icon: <IconSearch size={18} />, href: '/client/book' },
+              { label: 'My Account', icon: <IconPerson size={18} />, href: '/client/history' },
+            ] as const).map(({ label, icon, href }) => (
+              <button
+                key={label}
+                onClick={() => router.push(href)}
+                style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: '16px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: T.badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {icon}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Zone */}
-        <div className="rounded-2xl border border-gray-200 p-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-100 flex-shrink-0">
-              <span className="text-lg">📍</span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400">Your hiking zone</p>
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {zone?.name ?? 'Not assigned'}
-              </p>
-              {zone?.description && (
-                <p className="text-xs text-gray-500 truncate">{zone.description}</p>
-              )}
-            </div>
+                <p style={{ color: T.brown, fontSize: 12, fontFamily: FONT, lineHeight: 1.2, margin: 0 }}>{label}</p>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Trail Pack credits card — only when credits are active */}
+        {/* ── Hiking zone card ── */}
+        <div
+          style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}
+        >
+          <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: T.badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <IconPin size={18} />
+          </div>
+          <div className="min-w-0">
+            <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT }}>Your hiking zone</p>
+            <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 14 }} className="truncate">
+              {zone?.name ?? 'Not assigned'}
+            </p>
+            {zone?.description && (
+              <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }} className="truncate">
+                {zone.description}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Trail Pack card (hidden when no active credits) ── */}
         {trailPack && trailPack.total > 0 && (
           <button
             onClick={() => router.push('/client/history')}
-            className="w-full rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-4 text-left hover:bg-amber-100 transition-colors"
+            style={{ backgroundColor: T.warmSand, border: `1px solid ${T.sand}`, borderRadius: 12, padding: '12px 14px', marginBottom: 20, width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
           >
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 flex-shrink-0">
-                <span className="text-lg">🎒</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-amber-700 font-medium">Trail Pack</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {trailPack.total} credit{trailPack.total !== 1 ? 's' : ''} remaining
-                </p>
-                {trailPack.soonestExpiry && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Expires {new Date(trailPack.soonestExpiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </p>
-                )}
-              </div>
-              <span className="text-xs text-amber-600 flex-shrink-0">History →</span>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IconTag size={18} />
             </div>
+            <div className="min-w-0 flex-1">
+              <p style={{ color: T.orange, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>Trail Pack</p>
+              <p style={{ color: T.brown, fontWeight: 700, fontSize: 18, fontFamily: FONT }}>
+                {trailPack.total} credit{trailPack.total !== 1 ? 's' : ''} remaining
+              </p>
+              {trailPack.soonestExpiry && (
+                <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                  Expires {new Date(trailPack.soonestExpiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+            <span style={{ color: T.orange, fontSize: 13, fontFamily: FONT, flexShrink: 0 }}>History →</span>
           </button>
         )}
 
-        {/* Book a hike */}
-        <button
-          onClick={() => router.push('/client/book')}
-          className="w-full bg-green-600 text-white py-3.5 rounded-xl font-medium text-sm hover:bg-green-700 transition-colors mb-8"
-        >
-          Book a hike →
-        </button>
-
-        {/* Upcoming bookings */}
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Upcoming hikes</h2>
-          {upcoming.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 mb-3">
-                <span className="text-2xl">🗓️</span>
-              </div>
-              <p className="text-sm text-gray-500">No upcoming hikes yet.</p>
-              <p className="text-xs text-gray-400 mt-1">Book your first adventure above.</p>
-            </div>
-          ) : (
+        {/* ── Upcoming hikes section ── */}
+        {upcoming.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <SectionHeader title="Upcoming hikes" />
             <div className="space-y-2">
               {upcoming.map(u => (
                 <button
                   key={u.id}
                   onClick={() => router.push(`/client/bookings/${u.id}`)}
-                  className="w-full rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50 transition-colors"
+                  style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, width: '100%', textAlign: 'left', cursor: 'pointer' }}
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-900">{formatShort(u.date)}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
-                        Confirmed
-                      </span>
-                      <span className="text-gray-400 text-xs">→</span>
-                    </div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-sm">
+                      {formatShort(u.date)}
+                    </p>
+                    <span style={{ backgroundColor: '#E8F0E5', color: T.forest, borderRadius: 20, padding: '3px 10px', fontSize: 12, fontFamily: FONT }}>
+                      Confirmed
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    🐕 {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
-                  </p>
+                  <div className="flex items-center gap-1 mb-1">
+                    <IconPaw size={13} />
+                    <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                      {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
+                    </p>
+                  </div>
                   {(u.pickup || u.dropoff) && (
-                    <p className="text-[11px] text-gray-400 mt-1 capitalize">
+                    <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT }} className="capitalize">
                       {u.pickup} pickup · {u.dropoff} drop-off
                     </p>
                   )}
                 </button>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Past and cancelled */}
+        {/* ── Past and cancelled section ── */}
         {past.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Past and cancelled</h2>
+          <div style={{ paddingBottom: 16 }}>
+            <SectionHeader title="Past and cancelled" />
             <div className="space-y-2">
               {past.map(u => (
                 <button
                   key={u.id}
                   onClick={() => router.push(`/client/bookings/${u.id}`)}
-                  className="w-full rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50 transition-colors opacity-70"
+                  style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, width: '100%', textAlign: 'left', cursor: 'pointer' }}
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-700">{formatShort(u.date)}</p>
-                    <div className="flex items-center gap-2">
-                      <PastStatusBadge status={u.status} />
-                      <span className="text-gray-400 text-xs">→</span>
-                    </div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm">
+                      {formatShort(u.date)}
+                    </p>
+                    <PastBadge status={u.status} />
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    🐕 {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
-                  </p>
+                  <div className="flex items-center gap-1">
+                    <IconPaw size={13} color={T.muted} />
+                    <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                      {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
+                    </p>
+                  </div>
                 </button>
               ))}
             </div>
@@ -334,56 +457,23 @@ export default function ClientHome() {
   )
 }
 
-function PastStatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    confirmed: 'bg-gray-100 text-gray-500',
-    cancelled: 'bg-red-100 text-red-600',
-    no_show: 'bg-red-100 text-red-600',
-  }
-  const label: Record<string, string> = {
-    confirmed: 'Completed',
-    cancelled: 'Cancelled',
-    no_show: 'No-show',
-  }
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${map[status] ?? 'bg-gray-100 text-gray-500'}`}>
-      {label[status] ?? status}
-    </span>
-  )
-}
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-function DogAvatar({ dog, size }: { dog: Dog; size: number }) {
-  if (dog.photo_url) {
-    return (
-      <div
-        className="rounded-full bg-gray-100 bg-cover bg-center flex-shrink-0"
-        style={{ width: size, height: size, backgroundImage: `url(${dog.photo_url})` }}
-        role="img"
-        aria-label={dog.name}
-      />
-    )
-  }
+function SectionHeader({ title }: { title: string }) {
   return (
-    <div
-      className="rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"
-      style={{ width: size, height: size }}
-    >
-      <span style={{ fontSize: size * 0.5 }}>🐕</span>
+    <div className="flex items-center gap-2 mb-3">
+      <div style={{ width: 3, height: 16, backgroundColor: T.forest, borderRadius: 2, flexShrink: 0 }} />
+      <h2 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-sm">{title}</h2>
     </div>
   )
 }
 
-function StatusBadge({ status, small }: { status: string | null; small?: boolean }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    approved: { label: 'Approved', cls: 'bg-green-100 text-green-700' },
-    approved_with_conditions: { label: 'Approved · conditions', cls: 'bg-amber-100 text-amber-700' },
-    pending: { label: 'Pending review', cls: 'bg-gray-100 text-gray-600' },
-    declined: { label: 'Declined', cls: 'bg-red-100 text-red-700' },
+function PastBadge({ status }: { status: string }) {
+  if (status === 'cancelled') {
+    return <span style={{ backgroundColor: '#FEF3E2', color: T.orange, borderRadius: 20, padding: '3px 10px', fontSize: 12, fontFamily: FONT }}>Cancelled</span>
   }
-  const s = map[status ?? ''] ?? { label: status ?? 'Unknown', cls: 'bg-gray-100 text-gray-600' }
-  return (
-    <span className={`inline-flex items-center px-2.5 ${small ? 'py-0.5 text-[11px]' : 'py-1 text-xs'} rounded-full font-medium ${s.cls}`}>
-      {s.label}
-    </span>
-  )
+  if (status === 'no_show') {
+    return <span style={{ backgroundColor: '#FBE9E3', color: '#C1562D', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontFamily: FONT }}>No-show</span>
+  }
+  return <span style={{ backgroundColor: T.badgeBg, color: T.muted, borderRadius: 20, padding: '3px 10px', fontSize: 12, fontFamily: FONT }}>Completed</span>
 }
