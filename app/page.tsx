@@ -88,7 +88,7 @@ export default function LandingPage() {
         <div
           style={{
             position: 'absolute', inset: 0,
-            backgroundImage: 'url(/images/landing-hero.jpg)',
+            backgroundImage: 'url(/images/Landing-hero.jpg)',
             backgroundSize: 'cover', backgroundPosition: 'center',
             zIndex: 0,
           }}
