@@ -12,12 +12,9 @@ export default function Onboarding() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  useEffect(() => {
-    // Check user is logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push('/')
-    })
-  }, [router])
+  // No auth guard here — unauthenticated users reach this page from the
+  // landing page "Get Started" button. The saveProfile handler below checks
+  // for a session before writing to the DB.
 
   async function saveProfile() {
     setLoading(true)
