@@ -52,6 +52,82 @@ type BookingRow = {
   created_at: string
 }
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const T = {
+  bg:         '#F5F0E8',
+  forest:     '#26452B',
+  moss:       '#4D6B46',
+  orange:     '#E08A3E',
+  sand:       '#E6C89A',
+  brown:      '#3B2A1F',
+  cardBorder: '#E8E2D9',
+  badgeBg:    '#EEE9E0',
+  muted:      '#8A7E72',
+  warmSand:   '#F5F0E0',
+} as const
+
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+// ─── SVG icons ────────────────────────────────────────────────────────────────
+
+function IconPaw({ size = 13, color = '#4D6B46' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ flexShrink: 0 }}>
+      <circle cx="5.5" cy="5.5" r="2.5" />
+      <circle cx="18.5" cy="5.5" r="2.5" />
+      <circle cx="3.5" cy="11" r="2" />
+      <circle cx="20.5" cy="11" r="2" />
+      <path d="M12 13c-2.5 0-6 2.5-6 6 0 1.5 1 2 2 2h8c1 0 2-.5 2-2 0-3.5-3.5-6-6-6z" />
+    </svg>
+  )
+}
+
+function IconCheck({ size = 13, color = '#26452B' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
+function IconCalendar({ size = 12, color = '#4D6B46' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  )
+}
+
+function IconTag({ size = 16, color = '#E08A3E' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
+  )
+}
+
+function IconDot({ size = 8, color = '#E08A3E' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 8 8" style={{ flexShrink: 0 }}>
+      <circle cx="4" cy="4" r="4" fill={color} />
+    </svg>
+  )
+}
+
+function IconX({ size = 11, color = '#C1562D' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
@@ -224,45 +300,55 @@ export default function HistoryPage() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex items-center justify-center px-6">
+        <p style={{ color: T.muted }} className="text-sm">Loading…</p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
+    <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen px-5 pb-12">
       <div className="w-full max-w-sm mx-auto">
 
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        {/* ── Header ── */}
+        <div className="flex items-center gap-3 pt-12 pb-8">
           <button
             onClick={() => router.push('/client/home')}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 text-lg leading-none"
+            style={{ backgroundColor: T.cardBorder, color: T.forest, borderRadius: '50%', width: 36, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, lineHeight: 1 }}
           >
             ←
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">Hike history</h1>
+          <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-lg">Hike history</h1>
         </div>
 
         {/* ── Completed hikes ── */}
-        <section className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Completed hikes</h2>
+        <section style={{ marginBottom: 28 }}>
+          <SectionHeader title="Completed hikes" />
           {completed.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
-              <p className="text-sm text-gray-400">No completed hikes yet.</p>
+            <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
+              <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT }}>No completed hikes yet.</p>
             </div>
           ) : (
-            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {completed.map(h => (
-                <div key={h.bookingId} className="px-4 py-3 flex items-center justify-between">
+            <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, overflow: 'hidden' }}>
+              {completed.map((h, i) => (
+                <div
+                  key={h.bookingId}
+                  style={i > 0 ? { borderTop: `1px solid ${T.cardBorder}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } : { padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+                >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{formatShort(h.date)}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {h.dogName}{h.destination ? ` · ${h.destination}` : ''}
+                    <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-sm">
+                      {formatShort(h.date)}
                     </p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <IconPaw size={13} color={T.moss} />
+                      <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                        {h.dogName}{h.destination ? ` · ${h.destination}` : ''}
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-lg ml-3 flex-shrink-0">✅</span>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: '#E8F0E5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <IconCheck size={13} color={T.forest} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -270,24 +356,33 @@ export default function HistoryPage() {
         </section>
 
         {/* ── Trail Pack ── */}
-        <section className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Trail Pack</h2>
+        <section style={{ marginBottom: 28 }}>
+          <SectionHeader title="Trail Pack" />
           {packs.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
-              <p className="text-sm text-gray-400">No Trail Pack purchases yet.</p>
+            <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
+              <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT }}>No Trail Pack purchases yet.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {packs.map(pack => (
-                <div key={pack.id} className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-gray-900">Trail Pack · 4 hikes</p>
-                    <span className="text-lg">🎒</span>
+                <div
+                  key={pack.id}
+                  style={{ backgroundColor: T.warmSand, border: `1px solid ${T.sand}`, borderRadius: 16, padding: 16 }}
+                >
+                  <div className="flex items-center gap-3 mb-1">
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <IconTag size={16} color={T.orange} />
+                    </div>
+                    <div>
+                      <p style={{ color: T.brown, fontWeight: 700, fontSize: 16, fontFamily: FONT, lineHeight: 1.2 }}>
+                        Trail Pack · 4 hikes
+                      </p>
+                      <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                        Purchased {formatShort(pack.purchaseDate.slice(0, 10))}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Purchased {formatShort(pack.purchaseDate.slice(0, 10))}
-                  </p>
-                  <div className="space-y-1.5">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
                     {pack.slots.map((slot, i) => (
                       <SlotRow key={i} index={i + 1} slot={slot} />
                     ))}
@@ -299,27 +394,33 @@ export default function HistoryPage() {
         </section>
 
         {/* ── Cancelled bookings ── */}
-        <section className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Cancelled bookings</h2>
+        <section style={{ paddingBottom: 16 }}>
+          <SectionHeader title="Cancelled bookings" />
           {cancelled.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center">
-              <p className="text-sm text-gray-400">No cancellations.</p>
+            <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
+              <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT }}>No cancellations.</p>
             </div>
           ) : (
-            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {cancelled.map(c => (
-                <div key={c.bookingId} className="px-4 py-3">
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{formatShort(c.date)}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{c.dogName}</p>
-                    </div>
-                    <span className={`ml-3 flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-                      c.creditIssued ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                    }`}>
-                      {c.creditIssued ? 'Credit issued' : 'Fee forfeited'}
-                    </span>
+            <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, overflow: 'hidden' }}>
+              {cancelled.map((c, i) => (
+                <div
+                  key={c.bookingId}
+                  style={i > 0 ? { borderTop: `1px solid ${T.cardBorder}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } : { padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+                >
+                  <div className="min-w-0">
+                    <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm">
+                      {formatShort(c.date)}
+                    </p>
+                    <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }} className="mt-0.5">
+                      {c.dogName}
+                    </p>
                   </div>
+                  <span style={c.creditIssued
+                    ? { backgroundColor: '#E8F0E5', color: T.forest, borderRadius: 20, padding: '3px 10px', fontSize: 12, fontFamily: FONT, flexShrink: 0, whiteSpace: 'nowrap' }
+                    : { backgroundColor: '#FBE9E3', color: '#C1562D', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontFamily: FONT, flexShrink: 0, whiteSpace: 'nowrap' }
+                  }>
+                    {c.creditIssued ? 'Credit issued' : 'Fee forfeited'}
+                  </span>
                 </div>
               ))}
             </div>
@@ -331,48 +432,79 @@ export default function HistoryPage() {
   )
 }
 
-// ─── Slot row ─────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <div style={{ width: 3, height: 16, backgroundColor: T.forest, borderRadius: 2, flexShrink: 0 }} />
+      <h2 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-sm">{title}</h2>
+    </div>
+  )
+}
 
 function SlotRow({ index, slot }: { index: number; slot: HikeSlot }) {
-  let icon: string
-  let textColor: string
-  let label: string
+  let iconBg: string
+  let iconEl: React.ReactNode
+  let mainText: string
+  let mainColor: string
+  let detail: string | null = null
+  let detailColor: string = T.muted
 
   if (slot.status === 'used') {
-    icon = '✅'
-    textColor = 'text-gray-700'
+    iconBg = '#E8F0E5'
+    iconEl = <IconCheck size={12} color={T.forest} />
+    mainText = 'Used'
+    mainColor = T.brown
     const parts: string[] = []
     if (slot.date) parts.push(formatShort(slot.date))
     if (slot.dogName) parts.push(slot.dogName)
     if (slot.destination) parts.push(slot.destination)
-    label = `Used · ${parts.join(' · ')}`
+    detail = parts.length > 0 ? parts.join(' · ') : null
+    detailColor = T.muted
   } else if (slot.status === 'upcoming') {
-    icon = '🗓'
-    textColor = 'text-blue-700'
+    iconBg = T.badgeBg
+    iconEl = <IconCalendar size={12} color={T.moss} />
+    mainText = slot.date ? formatShort(slot.date) : 'Upcoming'
+    mainColor = T.forest
     const parts: string[] = []
-    if (slot.date) parts.push(formatShort(slot.date))
     if (slot.dogName) parts.push(slot.dogName)
-    label = `Upcoming · ${parts.join(' · ')}`
+    detail = parts.length > 0 ? parts.join(' · ') : null
+    detailColor = T.moss
   } else if (slot.status === 'cancelled') {
-    icon = '❌'
-    textColor = 'text-gray-400'
+    iconBg = '#FBE9E3'
+    iconEl = <IconX size={11} color="#C1562D" />
+    mainText = 'Cancelled'
+    mainColor = T.muted
     const parts: string[] = []
     if (slot.date) parts.push(formatShort(slot.date))
     if (slot.dogName) parts.push(slot.dogName)
-    label = `Cancelled · ${parts.join(' · ')}`
+    detail = parts.length > 0 ? parts.join(' · ') : null
+    detailColor = T.muted
   } else {
-    icon = '✨'
-    textColor = 'text-amber-700'
-    label = slot.expiresAt
-      ? `Available · expires ${new Date(slot.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-      : 'Available'
+    // available
+    iconBg = T.badgeBg
+    iconEl = <IconDot size={8} color={T.orange} />
+    mainText = 'Available'
+    mainColor = T.orange
+    detail = slot.expiresAt
+      ? `Expires ${new Date(slot.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : null
+    detailColor = T.muted
   }
 
   return (
-    <div className="flex items-start gap-2">
-      <span className="text-[11px] font-semibold text-gray-400 mt-0.5 w-4 flex-shrink-0 text-right">{index}</span>
-      <span className="text-sm flex-shrink-0 leading-tight">{icon}</span>
-      <span className={`text-xs ${textColor} leading-relaxed`}>{label}</span>
+    <div className="flex items-center gap-2">
+      <span style={{ color: T.muted, fontSize: 13, fontFamily: FONT, width: 14, textAlign: 'right', flexShrink: 0 }}>
+        {index}
+      </span>
+      <div style={{ width: 22, height: 22, borderRadius: '50%', backgroundColor: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {iconEl}
+      </div>
+      <p style={{ fontSize: 13, fontFamily: FONT, lineHeight: 1.4 }} className="min-w-0">
+        <span style={{ color: mainColor }}>{mainText}</span>
+        {detail && <span style={{ color: detailColor }}> · {detail}</span>}
+      </p>
     </div>
   )
 }
