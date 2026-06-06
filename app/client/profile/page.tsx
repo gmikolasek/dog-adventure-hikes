@@ -379,7 +379,7 @@ export default function ClientProfile() {
           >
             ←
           </button>
-          <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-lg">My Pup</h1>
+          <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-lg">My Dog</h1>
           <div style={{ width: 36 }} />
         </div>
 
