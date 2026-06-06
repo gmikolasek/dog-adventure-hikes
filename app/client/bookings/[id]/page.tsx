@@ -52,6 +52,15 @@ async function downloadPhoto(url: string) {
   }
 }
 
+// UB is UTC+8; format as "Jun 6 at 2:34pm"
+function formatDropoffTime(iso: string): string {
+  const d = new Date(new Date(iso).getTime() + 8 * 60 * 60 * 1000)
+  const month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })
+  const day = d.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' }).toLowerCase()
+  return `${month} ${day} at ${time}`
+}
+
 export default function BookingDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -378,7 +387,7 @@ export default function BookingDetailPage() {
             <p className="text-sm font-medium text-blue-700">Hike completed 🥾</p>
             {booking.droppedOffAt && (
               <p className="text-xs text-blue-500 mt-1">
-                Dropped off {new Date(booking.droppedOffAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                Dropped off {formatDropoffTime(booking.droppedOffAt)}
               </p>
             )}
           </div>

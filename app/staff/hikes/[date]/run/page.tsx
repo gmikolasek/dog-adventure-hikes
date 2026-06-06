@@ -58,6 +58,7 @@ export default function RunPage() {
   const [mode, setMode] = useState<RunMode>('pickup')
   const [busy, setBusy] = useState<string | null>(null) // booking id being updated
   const [confirmNoShow, setConfirmNoShow] = useState<string | null>(null) // booking id
+  const [confirmUndo, setConfirmUndo] = useState<{ bookingId: string; type: 'pickup' | 'dropoff' } | null>(null)
 
   // Dropoff extras: photo + note, keyed by booking id
   const [dropoffPhoto, setDropoffPhoto] = useState<Record<string, File>>({})
@@ -214,6 +215,44 @@ export default function RunPage() {
     setBusy(null)
   }
 
+  async function undoPickup(bookingId: string) {
+    setBusy(bookingId)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ picked_up_at: null })
+      .eq('id', bookingId)
+    if (!error) {
+      setBookings(prev => {
+        const updated = prev.map(b =>
+          b.id === bookingId ? { ...b, pickedUpAt: null } : b
+        )
+        setMode(deriveMode(updated))
+        return updated
+      })
+    }
+    setConfirmUndo(null)
+    setBusy(null)
+  }
+
+  async function undoDropoff(bookingId: string) {
+    setBusy(bookingId)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ dropped_off_at: null, dropoff_note: null })
+      .eq('id', bookingId)
+    if (!error) {
+      setBookings(prev => {
+        const updated = prev.map(b =>
+          b.id === bookingId ? { ...b, droppedOffAt: null } : b
+        )
+        setMode(deriveMode(updated))
+        return updated
+      })
+    }
+    setConfirmUndo(null)
+    setBusy(null)
+  }
+
   if (!ready) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center">
@@ -279,6 +318,37 @@ export default function RunPage() {
           </button>
         ))}
       </div>
+
+      {/* ── Undo confirmation overlay ── */}
+      {confirmUndo && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+          <div className="w-full bg-white rounded-t-3xl p-6">
+            <p className="text-base font-semibold text-gray-900 mb-1">
+              Undo {confirmUndo.type === 'pickup' ? 'pickup' : 'drop-off'}?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              This will reset the {confirmUndo.type === 'pickup' ? 'pickup' : 'drop-off'} record for{' '}
+              {bookings.find(b => b.id === confirmUndo.bookingId)?.dogName}.
+            </p>
+            <button
+              onClick={() => confirmUndo.type === 'pickup'
+                ? undoPickup(confirmUndo.bookingId)
+                : undoDropoff(confirmUndo.bookingId)
+              }
+              disabled={busy === confirmUndo.bookingId}
+              className="w-full bg-gray-800 text-white py-4 rounded-2xl text-base font-semibold mb-3 disabled:opacity-50"
+            >
+              {busy === confirmUndo.bookingId ? 'Saving…' : 'Yes, undo'}
+            </button>
+            <button
+              onClick={() => setConfirmUndo(null)}
+              className="w-full py-4 rounded-2xl text-base font-medium text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── No-show confirmation overlay ── */}
       {confirmNoShow && (
@@ -371,7 +441,15 @@ export default function RunPage() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   {b.pickedUpAt && (
-                    <p className="text-xs font-medium text-green-600">{fmtTime(b.pickedUpAt)}</p>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <p className="text-xs font-medium text-green-600">{fmtTime(b.pickedUpAt)}</p>
+                      <button
+                        onClick={() => setConfirmUndo({ bookingId: b.id, type: 'pickup' })}
+                        className="text-[10px] text-gray-400 underline"
+                      >
+                        Undo
+                      </button>
+                    </div>
                   )}
                   {b.status === 'no_show' && (
                     <p className="text-xs text-red-400">No-show</p>
@@ -428,7 +506,15 @@ export default function RunPage() {
                   <p className="text-sm font-semibold text-gray-900">{b.dogName}</p>
                   {b.zoneName && <p className="text-xs text-gray-400">{b.zoneName}</p>}
                 </div>
-                <p className="text-xs text-green-600">{fmtTime(b.pickedUpAt)}</p>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs text-green-600">{fmtTime(b.pickedUpAt)}</p>
+                  <button
+                    onClick={() => setConfirmUndo({ bookingId: b.id, type: 'pickup' })}
+                    className="text-[10px] text-gray-400 underline"
+                  >
+                    Undo pickup
+                  </button>
+                </div>
               </div>
             ))}
             {noShows.length > 0 && (
@@ -557,7 +643,15 @@ export default function RunPage() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   {b.droppedOffAt ? (
-                    <p className="text-xs font-medium text-blue-600">{fmtTime(b.droppedOffAt)}</p>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <p className="text-xs font-medium text-blue-600">{fmtTime(b.droppedOffAt)}</p>
+                      <button
+                        onClick={() => setConfirmUndo({ bookingId: b.id, type: 'dropoff' })}
+                        className="text-[10px] text-gray-400 underline"
+                      >
+                        Undo
+                      </button>
+                    </div>
                   ) : b.id !== nextDropoff?.id ? (
                     <button
                       onClick={() => confirmDropoff(b.id)}
