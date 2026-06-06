@@ -14,6 +14,7 @@ export default function StaffDashboard() {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [metrics, setMetrics] = useState<WeeklyMetrics>({ hikesThisWeek: 0, revenueThisWeek: 0, bookingsCount: 0 })
   const [upcomingHikes, setUpcomingHikes] = useState<HikeDetail[]>([])
+  const [dropoffStatsByDay, setDropoffStatsByDay] = useState<Record<string, { total: number; complete: number }>>({})
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -37,6 +38,25 @@ export default function StaffDashboard() {
       setClients(clientsData)
       setMetrics(metricsData)
       setUpcomingHikes(hikesData)
+
+      if (hikesData.length) {
+        const dayIds = hikesData.map(h => h.hikeDayId)
+        const { data: dropoffRows } = await supabase
+          .from('bookings')
+          .select('hike_day_id, dropped_off_at')
+          .eq('status', 'confirmed')
+          .in('hike_day_id', dayIds)
+        if (dropoffRows) {
+          const stats: Record<string, { total: number; complete: number }> = {}
+          for (const id of dayIds) stats[id] = { total: 0, complete: 0 }
+          for (const r of dropoffRows) {
+            stats[r.hike_day_id].total++
+            if (r.dropped_off_at) stats[r.hike_day_id].complete++
+          }
+          setDropoffStatsByDay(stats)
+        }
+      }
+
       setReady(true)
     }
     load()
@@ -136,14 +156,31 @@ export default function StaffDashboard() {
                       </span>
                       <span className="text-xs text-green-600 flex-shrink-0 ml-3">View →</span>
                     </button>
-                    {isToday && (
-                      <button
-                        onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
-                        className="w-full bg-green-600 text-white py-3 text-sm font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <span>🥾</span><span>Start run</span>
-                      </button>
-                    )}
+                    {isToday && (() => {
+                      const s = dropoffStatsByDay[hike.hikeDayId]
+                      if (!s) return null
+                      if (s.complete === s.total && s.total > 0) return (
+                        <div className="w-full bg-green-50 border-t border-green-200 py-3 text-sm font-semibold text-green-700 flex items-center justify-center gap-2">
+                          <span>Hike complete ✓</span>
+                        </div>
+                      )
+                      if (s.complete > 0) return (
+                        <button
+                          onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
+                          className="w-full bg-blue-600 text-white py-3 text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span>🥾</span><span>Hike in progress · {s.complete} of {s.total} dropped off</span>
+                        </button>
+                      )
+                      return (
+                        <button
+                          onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
+                          className="w-full bg-green-600 text-white py-3 text-sm font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span>🥾</span><span>Start hike</span>
+                        </button>
+                      )
+                    })()}
                   </div>
                 )
               })}
