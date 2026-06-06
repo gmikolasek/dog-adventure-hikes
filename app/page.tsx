@@ -68,8 +68,7 @@ export default function LandingPage() {
     return <div style={{ backgroundColor: '#26452B', minHeight: '100vh' }} />
   }
 
-  // Set to true once public/images/landing-hero.jpg is added
-  const hasHeroImage = false
+  const hasHeroImage = true
 
   return (
     <main
