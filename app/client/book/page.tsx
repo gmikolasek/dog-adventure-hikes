@@ -20,6 +20,7 @@ export default function BookHike() {
 
   const [hikeDays, setHikeDays] = useState<HikeDay[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [startedDayIds, setStartedDayIds] = useState<Set<string>>(new Set())
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [selectedDogs, setSelectedDogs] = useState<string[]>([])
   const [pickup, setPickup] = useState<Method | null>(null)
@@ -58,12 +59,20 @@ export default function BookHike() {
           .order('date', { ascending: true })
         setHikeDays((dayRows ?? []) as HikeDay[])
         setCounts(await getBookedCounts())
+
+        const { data: startedRows } = await supabase.rpc('hike_day_started_ids')
+        setStartedDayIds(new Set(((startedRows ?? []) as { hike_day_id: string }[]).map(r => r.hike_day_id)))
       }
 
       setReady(true)
     }
     load()
   }, [router])
+
+  // If a selected day's hike starts mid-session, clear the selection.
+  useEffect(() => {
+    if (selectedDay && startedDayIds.has(selectedDay)) setSelectedDay(null)
+  }, [selectedDay, startedDayIds])
 
   // When the selected day changes, fetch which of the client's dogs are already
   // confirmed for that day, and remove them from the selection.
@@ -142,16 +151,19 @@ export default function BookHike() {
             <p className="text-xs text-gray-400 mt-1">Check back soon — new days open weekly.</p>
           </div>
         ) : (
-          <div className="space-y-2 mb-7">
+          <>
+          <div className="space-y-2">
             {hikeDays.map(day => {
               const left = spotsLeft(day, counts)
               const full = left === 0 && !day.allow_over_capacity
+              const started = startedDayIds.has(day.id)
+              const disabled = full || started
               const active = selectedDay === day.id
               return (
                 <button
                   key={day.id}
                   type="button"
-                  disabled={full}
+                  disabled={disabled}
                   onClick={() => setSelectedDay(day.id)}
                   className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition-colors disabled:opacity-40 ${
                     active ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
@@ -167,12 +179,19 @@ export default function BookHike() {
                     )}
                   </span>
                   <span className={`text-xs flex-shrink-0 ml-2 ${full ? 'text-red-500' : 'text-gray-400'}`}>
-                    {full ? 'Full' : `${left} spot${left !== 1 ? 's' : ''}`}
+                    {started ? 'Closed' : full ? 'Full' : `${left} spot${left !== 1 ? 's' : ''}`}
                   </span>
                 </button>
               )
             })}
           </div>
+          {hikeDays.some(d => startedDayIds.has(d.id)) && (
+            <p className="text-xs text-amber-700 mt-2">
+              Bookings for dates marked &ldquo;Closed&rdquo; are no longer available. Contact us directly if you&apos;d like to join a future hike.
+            </p>
+          )}
+          <div className="mb-7" />
+          </>
         )}
 
         {/* 2. Dogs */}

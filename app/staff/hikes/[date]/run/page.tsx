@@ -26,6 +26,13 @@ type RunBooking = {
 
 type RunMode = 'pickup' | 'hike' | 'dropoff'
 
+type AddDogResult = {
+  dogId: string
+  dogName: string
+  ownerId: string
+  ownerName: string | null
+}
+
 function deriveMode(bookings: RunBooking[]): RunMode {
   if (bookings.length === 0) return 'pickup'
   const active = bookings.filter(b => b.status !== 'no_show')
@@ -64,6 +71,15 @@ export default function RunPage() {
   const [dropoffPhoto, setDropoffPhoto] = useState<Record<string, File>>({})
   const [dropoffNote, setDropoffNote] = useState<Record<string, string>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Add-dog modal state
+  const [showAddDog, setShowAddDog] = useState(false)
+  const [addDogQuery, setAddDogQuery] = useState('')
+  const [addDogResults, setAddDogResults] = useState<AddDogResult[]>([])
+  const [addDogSelected, setAddDogSelected] = useState<AddDogResult | null>(null)
+  const [addDogPickup, setAddDogPickup] = useState<'curbside' | 'home'>('home')
+  const [addDogBusy, setAddDogBusy] = useState(false)
+  const [addDogError, setAddDogError] = useState('')
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -253,6 +269,95 @@ export default function RunPage() {
     setBusy(null)
   }
 
+  async function handleAddDogSearch(q: string) {
+    setAddDogQuery(q)
+    setAddDogSelected(null)
+    if (q.length < 2) { setAddDogResults([]); return }
+    const { data } = await supabase
+      .from('dogs')
+      .select('id, name, owner_id')
+      .in('approval_status', ['approved', 'approved_with_conditions'])
+      .ilike('name', `%${q}%`)
+      .limit(10)
+    if (!data?.length) { setAddDogResults([]); return }
+    const ownerIds = [...new Set((data as { owner_id: string }[]).map(d => d.owner_id))]
+    const { data: ownerRows } = await supabase
+      .from('users').select('id, name').in('id', ownerIds)
+    const ownerMap: Record<string, string | null> = {}
+    for (const u of (ownerRows ?? [])) ownerMap[u.id] = u.name
+    const existingDogIds = new Set(bookings.map(b => b.dogId))
+    setAddDogResults(
+      (data as { id: string; name: string; owner_id: string }[])
+        .filter(d => !existingDogIds.has(d.id))
+        .map(d => ({ dogId: d.id, dogName: d.name, ownerId: d.owner_id, ownerName: ownerMap[d.owner_id] ?? null }))
+    )
+  }
+
+  function closeAddDog() {
+    setShowAddDog(false)
+    setAddDogQuery('')
+    setAddDogResults([])
+    setAddDogSelected(null)
+    setAddDogPickup('home')
+    setAddDogError('')
+  }
+
+  async function handleAddDog() {
+    if (!addDogSelected || !hikeDayId) return
+    setAddDogBusy(true)
+    setAddDogError('')
+    const { data: newBooking, error } = await supabase
+      .from('bookings')
+      .insert({
+        hike_day_id: hikeDayId,
+        dog_id: addDogSelected.dogId,
+        owner_id: addDogSelected.ownerId,
+        status: 'confirmed',
+        pickup_method: addDogPickup,
+        dropoff_method: 'home',
+        amount_charged: 0,
+        credit_used: 0,
+        staff_added: true,
+      })
+      .select('id')
+      .single()
+    if (error || !newBooking) {
+      setAddDogError('Failed to add — ' + (error?.message ?? 'unknown error'))
+      setAddDogBusy(false)
+      return
+    }
+    const { data: ownerRow } = await supabase
+      .from('users').select('name, phone, address, zone_id').eq('id', addDogSelected.ownerId).maybeSingle()
+    let zoneName: string | null = null
+    if (ownerRow?.zone_id) {
+      const { data: zoneRow } = await supabase
+        .from('zones').select('name').eq('id', ownerRow.zone_id).maybeSingle()
+      zoneName = zoneRow?.name ?? null
+    }
+    const newEntry: RunBooking = {
+      id: (newBooking as { id: string }).id,
+      dogId: addDogSelected.dogId,
+      dogName: addDogSelected.dogName,
+      ownerName: ownerRow?.name ?? addDogSelected.ownerName,
+      ownerPhone: ownerRow?.phone ?? null,
+      ownerAddress: ownerRow?.address ?? null,
+      pickupMethod: addDogPickup,
+      dropoffMethod: 'home',
+      status: 'confirmed',
+      pickedUpAt: null,
+      droppedOffAt: null,
+      zoneId: ownerRow?.zone_id ?? null,
+      zoneName,
+    }
+    setBookings(prev => {
+      const updated = [...prev, newEntry].sort((a, b) => (a.zoneName ?? '').localeCompare(b.zoneName ?? ''))
+      setMode(deriveMode(updated))
+      return updated
+    })
+    setAddDogBusy(false)
+    closeAddDog()
+  }
+
   if (!ready) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center">
@@ -294,15 +399,116 @@ export default function RunPage() {
           </h1>
           <p className="text-xs text-gray-400 truncate">{formattedDate}{destination ? ` · ${destination}` : ''}</p>
         </div>
-        {/* Mode pill */}
-        <span className={`ml-auto flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
-          mode === 'pickup' ? 'bg-amber-100 text-amber-700'
-          : mode === 'hike' ? 'bg-green-100 text-green-700'
-          : 'bg-blue-100 text-blue-700'
-        }`}>
-          {mode === 'pickup' ? 'Pickup' : mode === 'hike' ? 'Hiking' : 'Drop-off'}
-        </span>
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setShowAddDog(true)}
+            className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600"
+          >
+            + Add dog
+          </button>
+          {/* Mode pill */}
+          <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+            mode === 'pickup' ? 'bg-amber-100 text-amber-700'
+            : mode === 'hike' ? 'bg-green-100 text-green-700'
+            : 'bg-blue-100 text-blue-700'
+          }`}>
+            {mode === 'pickup' ? 'Pickup' : mode === 'hike' ? 'Hiking' : 'Drop-off'}
+          </span>
+        </div>
       </div>
+
+      {/* ── Add Dog Modal ── */}
+      {showAddDog && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+          <div className="w-full bg-white rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-base font-semibold text-gray-900">Add dog to hike</p>
+              <button
+                onClick={closeAddDog}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <input
+              type="text"
+              placeholder="Search by dog name…"
+              value={addDogQuery}
+              onChange={e => handleAddDogSearch(e.target.value)}
+              autoFocus
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:border-green-500"
+            />
+
+            {!addDogSelected && addDogResults.length > 0 && (
+              <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 mb-4 overflow-hidden">
+                {addDogResults.map(r => (
+                  <button
+                    key={r.dogId}
+                    onClick={() => setAddDogSelected(r)}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50"
+                  >
+                    <p className="text-sm font-semibold text-gray-900">{r.dogName}</p>
+                    <p className="text-xs text-gray-500">{r.ownerName ?? '—'}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {addDogQuery.length >= 2 && !addDogSelected && addDogResults.length === 0 && (
+              <p className="text-sm text-gray-400 mb-3">No approved dogs found.</p>
+            )}
+
+            {addDogSelected && (
+              <>
+                <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{addDogSelected.dogName}</p>
+                      <p className="text-xs text-gray-500">{addDogSelected.ownerName ?? '—'}</p>
+                    </div>
+                    <button onClick={() => setAddDogSelected(null)} className="text-xs text-gray-400 underline">
+                      Change
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-5">
+                  <p className="text-xs text-gray-500 mb-2">Pickup method</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['home', 'curbside'] as const).map(m => (
+                      <button
+                        key={m}
+                        onClick={() => setAddDogPickup(m)}
+                        className={`py-2.5 rounded-xl text-sm font-medium border capitalize transition-colors ${
+                          addDogPickup === m
+                            ? 'bg-green-600 text-white border-green-600'
+                            : 'bg-white text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {addDogError && <p className="text-xs text-red-500 mb-3">{addDogError}</p>}
+
+            <button
+              onClick={handleAddDog}
+              disabled={!addDogSelected || addDogBusy}
+              className="w-full bg-green-600 text-white py-4 rounded-2xl text-base font-semibold disabled:opacity-50 mb-2"
+            >
+              {addDogBusy ? 'Adding…' : 'Add to hike'}
+            </button>
+            <button onClick={closeAddDog} className="w-full py-3 text-base font-medium text-gray-500">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Mode indicator tabs ── */}
       <div className="flex gap-0 border-b border-gray-100 px-5 mb-2">
