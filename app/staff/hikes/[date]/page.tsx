@@ -15,6 +15,7 @@ export default function HikeDetailPage() {
   const [ready, setReady] = useState(false)
   const [hike, setHike] = useState<HikeDetail | null>(null)
   const [staffUserId, setStaffUserId] = useState('')
+  const [dropoffStats, setDropoffStats] = useState<{ total: number; complete: number } | null>(null)
 
   // Photo state
   const [photos, setPhotos] = useState<HikePhoto[]>([])
@@ -47,6 +48,18 @@ export default function HikeDetailPage() {
       setHike(hikeData)
 
       if (hikeData?.hikeDayId) {
+        const { data: dropoffRows } = await supabase
+          .from('bookings')
+          .select('dropped_off_at')
+          .eq('hike_day_id', hikeData.hikeDayId)
+          .eq('status', 'confirmed')
+        if (dropoffRows) {
+          setDropoffStats({
+            total: dropoffRows.length,
+            complete: dropoffRows.filter(r => r.dropped_off_at).length,
+          })
+        }
+
         const { data: photoRows } = await supabase
           .from('hike_photos')
           .select('id, dog_id, storage_path, caption, taken_at')
@@ -192,15 +205,29 @@ export default function HikeDetailPage() {
           </div>
         </div>
 
-        {/* Start run button — only on/after hike day */}
-        {hike && hike.bookings.length > 0 && isRunDay && (
-          <button
-            onClick={() => router.push(`/staff/hikes/${date}/run`)}
-            className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-base hover:bg-green-700 transition-colors mb-6 flex items-center justify-center gap-2"
-          >
-            <span>🥾</span>
-            <span>Start run</span>
-          </button>
+        {/* Hike run status — only on/after hike day */}
+        {hike && hike.bookings.length > 0 && isRunDay && dropoffStats && (
+          dropoffStats.complete === dropoffStats.total ? (
+            <div className="w-full bg-green-50 border border-green-200 py-4 rounded-2xl mb-6 flex items-center justify-center gap-2">
+              <span className="text-base font-semibold text-green-700">Hike complete ✓</span>
+            </div>
+          ) : dropoffStats.complete > 0 ? (
+            <button
+              onClick={() => router.push(`/staff/hikes/${date}/run`)}
+              className="w-full bg-blue-600 text-white py-4 rounded-2xl font-semibold text-base hover:bg-blue-700 transition-colors mb-6 flex items-center justify-center gap-2"
+            >
+              <span>🥾</span>
+              <span>Hike in progress · {dropoffStats.complete} of {dropoffStats.total} dropped off</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => router.push(`/staff/hikes/${date}/run`)}
+              className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-base hover:bg-green-700 transition-colors mb-6 flex items-center justify-center gap-2"
+            >
+              <span>🥾</span>
+              <span>Start hike</span>
+            </button>
+          )
         )}
 
         {!hike || hike.bookings.length === 0 ? (

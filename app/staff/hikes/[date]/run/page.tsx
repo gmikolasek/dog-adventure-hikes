@@ -290,7 +290,7 @@ export default function RunPage() {
         </button>
         <div className="min-w-0">
           <h1 className="text-base font-semibold text-gray-900 leading-tight truncate">
-            {mode === 'pickup' ? 'Pickup sweep' : mode === 'hike' ? 'On the hike' : 'Drop-off sweep'}
+            {mode === 'pickup' ? 'Pickup' : mode === 'hike' ? 'On the hike' : 'Drop-off'}
           </h1>
           <p className="text-xs text-gray-400 truncate">{formattedDate}{destination ? ` · ${destination}` : ''}</p>
         </div>
@@ -528,7 +528,7 @@ export default function RunPage() {
             onClick={() => setMode('dropoff')}
             className="w-full bg-blue-600 text-white py-5 rounded-2xl text-lg font-bold active:bg-blue-700"
           >
-            Start drop-off sweep →
+            Start drop-off →
           </button>
         </div>
       )}

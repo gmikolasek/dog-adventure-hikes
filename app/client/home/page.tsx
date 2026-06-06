@@ -15,6 +15,7 @@ type BookingCard = {
   pickup: string | null
   dropoff: string | null
   status: string
+  droppedOffAt: string | null
 }
 
 type TrailPackSummary = { total: number; soonestExpiry: string | null }
@@ -53,7 +54,7 @@ export default function ClientHome() {
       // All bookings (confirmed + cancelled + no_show) for this owner.
       const { data: bookingRows } = await supabase
         .from('bookings')
-        .select('id, dog_id, hike_day_id, pickup_method, dropoff_method, status')
+        .select('id, dog_id, hike_day_id, pickup_method, dropoff_method, status, dropped_off_at')
         .eq('owner_id', session.user.id)
         .in('status', ['confirmed', 'cancelled', 'no_show'])
 
@@ -86,8 +87,9 @@ export default function ClientHome() {
             pickup: b.pickup_method,
             dropoff: b.dropoff_method,
             status: b.status,
+            droppedOffAt: b.dropped_off_at ?? null,
           }
-          if (b.status === 'confirmed' && day.date >= today) {
+          if (b.status === 'confirmed' && !b.dropped_off_at && day.date >= today) {
             upcomingList.push(card)
           } else {
             pastList.push(card)
