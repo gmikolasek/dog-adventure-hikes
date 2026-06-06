@@ -6,6 +6,23 @@ import { useRouter } from 'next/navigation'
 import { getWeeklyRevenue, PRICE_PER_HIKE, type WeeklyRevenueData } from '@/lib/adminData'
 import { formatShort } from '@/lib/booking'
 
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const T = {
+  bg:          '#F5F0E8',
+  forestGreen: '#26452B',
+  moss:        '#4D6B46',
+  orange:      '#E08A3E',
+  rust:        '#C1562D',
+  sand:        '#E6C89A',
+  brown:       '#3B2A1F',
+  cardBorder:  '#E8E2D9',
+  divider:     '#F0EBE3',
+  muted:       '#8A7E72',
+  badgeBg:     '#EEE9E0',
+} as const
+
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
 export default function RevenuePage() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
@@ -31,8 +48,8 @@ export default function RevenuePage() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex items-center justify-center px-4">
+        <p style={{ color: T.muted }} className="text-sm">Loading…</p>
       </main>
     )
   }
@@ -41,68 +58,91 @@ export default function RevenuePage() {
   const weekLabel = `${formatShort(d.weekMon)} – ${formatShort(d.weekSun)}`
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
+    <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen px-4 py-10">
       <div className="w-full max-w-sm mx-auto">
 
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        {/* ── Header ── */}
+        <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => router.push('/staff')}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 text-lg leading-none"
+            style={{ backgroundColor: T.cardBorder, color: T.forestGreen }}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full text-lg leading-none flex-shrink-0"
           >
             ←
           </button>
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-100">
+          <div
+            style={{ backgroundColor: `${T.forestGreen}18` }}
+            className="inline-flex items-center justify-center w-10 h-10 rounded-full flex-shrink-0"
+          >
             <span className="text-xl">💰</span>
           </div>
-          <h1 className="text-lg font-semibold text-gray-900">Revenue</h1>
+          <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-lg leading-tight">
+            Revenue
+          </h1>
         </div>
 
-        {/* Weekly total hero */}
-        <div className="rounded-2xl bg-green-600 text-white p-5 mb-6">
-          <p className="text-xs text-green-100">This week&apos;s revenue</p>
-          <p className="text-3xl font-semibold mt-1">₮{d.totalRevenue.toLocaleString()}</p>
-          <p className="text-xs text-green-100 mt-1">{weekLabel}</p>
+        {/* ── Hero revenue card ── */}
+        <div
+          style={{ backgroundColor: T.forestGreen, borderRadius: 16 }}
+          className="p-5 mb-4"
+        >
+          <p style={{ color: T.sand, fontFamily: FONT }} className="text-xs">This week&apos;s revenue</p>
+          <p style={{ fontFamily: FONT, fontWeight: 700 }} className="text-3xl text-white mt-1">
+            ₮{d.totalRevenue.toLocaleString()}
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontFamily: FONT }} className="text-xs mt-1">
+            {weekLabel}
+          </p>
         </div>
 
-        {/* Confirmed bookings this week */}
-        <section className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">
-            Bookings this week
-            {d.bookings.length > 0 && (
-              <span className="ml-2 text-xs font-normal text-gray-400">{d.bookings.length} total</span>
-            )}
-          </h2>
+        {/* ── Bookings this week ── */}
+        <section className="mb-4">
+          <SectionHeader title="Bookings this week" count={d.bookings.length} countLabel="total" />
           {d.bookings.length === 0 ? (
-            <p className="text-sm text-gray-400">No confirmed bookings this week.</p>
+            <p style={{ color: T.muted }} className="text-sm px-1">No confirmed bookings this week.</p>
           ) : (
-            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {d.bookings.map(b => {
+            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
+              {d.bookings.map((b, i) => {
                 const isTrailPack = b.amountCharged > PRICE_PER_HIKE
                 const isCredit = b.creditUsed > 0
                 return (
-                  <div key={b.id} className="px-4 py-3">
+                  <div
+                    key={b.id}
+                    style={i > 0 ? { borderTop: `1px solid ${T.divider}` } : undefined}
+                    className="px-4 py-3"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900">{b.dogName}</p>
-                        <p className="text-xs text-gray-500">{b.ownerName ?? '—'}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-sm">
+                          {b.dogName}
+                        </p>
+                        <p style={{ color: T.moss, fontWeight: 500 }} className="text-xs mt-0.5">
+                          {b.ownerName ?? '—'}
+                        </p>
+                        <p style={{ color: T.muted }} className="text-xs mt-0.5">
                           {formatShort(b.hikeDate)}
-                          {b.pickupMethod && (
-                            <span className="ml-2">· {b.pickupMethod}</span>
-                          )}
+                          {b.pickupMethod && <span> · {b.pickupMethod}</span>}
                         </p>
                       </div>
                       <div className="flex-shrink-0 text-right">
                         {isCredit ? (
-                          <span className="text-xs font-medium text-green-600">Credit used</span>
+                          <span
+                            style={{ backgroundColor: `${T.moss}18`, color: T.moss, borderRadius: 20, fontFamily: FONT }}
+                            className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium"
+                          >
+                            Credit used
+                          </span>
                         ) : isTrailPack ? (
                           <>
-                            <p className="text-sm font-semibold text-gray-900">₮{b.amountCharged.toLocaleString()}</p>
-                            <p className="text-[11px] text-amber-600 mt-0.5">Trail Pack · 4 hikes</p>
+                            <p style={{ color: T.brown, fontWeight: 700 }} className="text-sm">
+                              ₮{b.amountCharged.toLocaleString()}
+                            </p>
+                            <p style={{ color: T.orange }} className="text-[11px] mt-0.5">Trail Pack · 4 hikes</p>
                           </>
                         ) : (
-                          <p className="text-sm font-semibold text-gray-900">₮{b.amountCharged.toLocaleString()}</p>
+                          <p style={{ color: T.brown, fontWeight: 700 }} className="text-sm">
+                            ₮{b.amountCharged.toLocaleString()}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -113,29 +153,33 @@ export default function RevenuePage() {
           )}
         </section>
 
-        {/* Trail Pack holders */}
-        <section className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">
-            Trail Pack holders
-            {d.trailPackHolders.length > 0 && (
-              <span className="ml-2 text-xs font-normal text-gray-400">{d.trailPackHolders.length} active</span>
-            )}
-          </h2>
+        {/* ── Trail Pack holders ── */}
+        <section className="mb-4">
+          <SectionHeader title="Trail Pack holders" count={d.trailPackHolders.length} countLabel="active" />
           {d.trailPackHolders.length === 0 ? (
-            <p className="text-sm text-gray-400">No active Trail Pack credits.</p>
+            <p style={{ color: T.muted }} className="text-sm px-1">No active Trail Pack credits.</p>
           ) : (
-            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {d.trailPackHolders.map(tp => (
-                <div key={tp.id} className="px-4 py-3 flex items-center justify-between">
+            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
+              {d.trailPackHolders.map((tp, i) => (
+                <div
+                  key={tp.id}
+                  style={i > 0 ? { borderTop: `1px solid ${T.divider}` } : undefined}
+                  className="px-4 py-3 flex items-center justify-between"
+                >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{tp.ownerName ?? '—'}</p>
+                    <p style={{ color: T.brown, fontWeight: 700 }} className="text-sm">
+                      {tp.ownerName ?? '—'}
+                    </p>
                     {tp.expiresAt && (
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p style={{ color: T.muted }} className="text-xs mt-0.5">
                         Expires {formatShort(tp.expiresAt.slice(0, 10))}
                       </p>
                     )}
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 flex-shrink-0 ml-3">
+                  <span
+                    style={{ backgroundColor: T.forestGreen, color: '#fff', borderRadius: 20, fontFamily: FONT, fontWeight: 600, padding: '4px 12px', whiteSpace: 'nowrap' }}
+                    className="text-xs flex-shrink-0 ml-3"
+                  >
                     {tp.creditsRemaining} credit{tp.creditsRemaining !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -144,28 +188,31 @@ export default function RevenuePage() {
           )}
         </section>
 
-        {/* Exceptions this week */}
-        <section>
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">
-            Exceptions this week
-            {d.exceptions.length > 0 && (
-              <span className="ml-2 text-xs font-normal text-gray-400">{d.exceptions.length} total</span>
-            )}
-          </h2>
+        {/* ── Exceptions this week ── */}
+        <section className="pb-10">
+          <SectionHeader title="Exceptions this week" count={d.exceptions.length} countLabel="total" />
           {d.exceptions.length === 0 ? (
-            <p className="text-sm text-gray-400">No cancellations or no-shows this week.</p>
+            <p style={{ color: T.muted }} className="text-sm px-1">No cancellations or no-shows this week.</p>
           ) : (
-            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {d.exceptions.map(ex => (
-                <div key={ex.id} className="px-4 py-3 flex items-start justify-between gap-2">
+            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
+              {d.exceptions.map((ex, i) => (
+                <div
+                  key={ex.id}
+                  style={i > 0 ? { borderTop: `1px solid ${T.divider}` } : undefined}
+                  className="px-4 py-3 flex items-start justify-between gap-2"
+                >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900">{ex.dogName}</p>
-                    <p className="text-xs text-gray-500">{ex.ownerName ?? '—'}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatShort(ex.hikeDate)}</p>
+                    <p style={{ color: T.brown, fontWeight: 700 }} className="text-sm">{ex.dogName}</p>
+                    <p style={{ color: T.moss, fontWeight: 500 }} className="text-xs mt-0.5">{ex.ownerName ?? '—'}</p>
+                    <p style={{ color: T.muted }} className="text-xs mt-0.5">{formatShort(ex.hikeDate)}</p>
                   </div>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                    ex.status === 'no_show' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                  }`}>
+                  <span
+                    style={ex.status === 'no_show'
+                      ? { backgroundColor: '#FBE9E3', color: T.rust, borderRadius: 20, fontFamily: FONT }
+                      : { backgroundColor: '#FEF3E2', color: T.orange, borderRadius: 20, fontFamily: FONT }
+                    }
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-medium flex-shrink-0"
+                  >
                     {ex.status === 'no_show' ? 'No-show' : 'Cancelled'}
                   </span>
                 </div>
@@ -176,5 +223,24 @@ export default function RevenuePage() {
 
       </div>
     </main>
+  )
+}
+
+function SectionHeader({ title, count, countLabel }: { title: string; count: number; countLabel: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <div style={{ width: 3, height: 16, backgroundColor: T.forestGreen, borderRadius: 2, flexShrink: 0 }} />
+      <h2 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-sm">
+        {title}
+      </h2>
+      {count > 0 && (
+        <span
+          style={{ backgroundColor: T.badgeBg, color: T.moss, borderRadius: 20, fontFamily: FONT }}
+          className="px-2 py-0.5 text-[12px] font-medium"
+        >
+          {count} {countLabel}
+        </span>
+      )}
+    </div>
   )
 }
