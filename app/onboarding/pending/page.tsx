@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getUserState } from '@/lib/userState'
 
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+const statusItems = [
+  { label: 'Account created', done: true },
+  { label: 'Dog profile submitted', done: true },
+  { label: 'Agreement accepted', done: true },
+]
+
 export default function Pending() {
   const router = useRouter()
 
@@ -39,54 +47,52 @@ export default function Pending() {
   }
 
   return (
-    <main className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
-      <div className="w-full max-w-sm text-center">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-100 mb-6">
-          <span className="text-4xl">🐾</span>
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: 384, textAlign: 'center' }}>
+
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 80, height: 80, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 24 }}>
+          <span style={{ fontSize: 36 }}>🐾</span>
         </div>
-        <h1 className="text-2xl font-semibold text-gray-900 mb-3">You're on the list</h1>
-        <p className="text-gray-500 text-sm leading-relaxed mb-8">
+
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#3B2A1F', marginBottom: 12, fontFamily: FONT }}>You&apos;re on the list</h1>
+        <p style={{ color: '#8A7E72', fontSize: 14, lineHeight: 1.6, marginBottom: 32, fontFamily: FONT }}>
           Your profile and dog details have been submitted. Our team will review your application and be in touch shortly.
         </p>
-        <div className="bg-gray-50 rounded-xl p-4 text-left space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs">✓</span>
+
+        <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {statusItems.map(item => (
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#26452B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ color: 'white', fontSize: 12, fontWeight: 700 }}>✓</span>
+              </div>
+              <span style={{ fontSize: 14, color: '#3B2A1F', fontFamily: FONT }}>{item.label}</span>
             </div>
-            <span className="text-sm text-gray-700">Account created</span>
+          ))}
+
+          {/* Awaiting review */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ color: 'white', fontSize: 10 }}>⏳</span>
+            </div>
+            <span style={{ fontSize: 14, color: '#3B2A1F', fontFamily: FONT }}>Awaiting team review</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs">✓</span>
+
+          {/* Future step */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#E8E2D9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ color: '#8A7E72', fontSize: 12 }}>5</span>
             </div>
-            <span className="text-sm text-gray-700">Dog profile submitted</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs">✓</span>
-            </div>
-            <span className="text-sm text-gray-700">Agreement accepted</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs">⏳</span>
-            </div>
-            <span className="text-sm text-gray-700">Awaiting team review</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-              <span className="text-gray-400 text-xs">5</span>
-            </div>
-            <span className="text-sm text-gray-400">Book your first hike</span>
+            <span style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT }}>Book your first hike</span>
           </div>
         </div>
 
         <button
           onClick={signOut}
-          className="mt-6 text-sm text-gray-500 hover:text-gray-700"
+          style={{ marginTop: 24, background: 'none', border: 'none', fontSize: 14, color: '#8A7E72', cursor: 'pointer', fontFamily: FONT }}
         >
           Sign out
         </button>
+
       </div>
     </main>
   )

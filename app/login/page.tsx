@@ -2,8 +2,46 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { getUserState, landingRoute } from '@/lib/userState'
+
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+const inputBase: React.CSSProperties = {
+  borderRadius: 10,
+  border: '1px solid #E8E2D9',
+  padding: '12px',
+  fontSize: 14,
+  color: '#171717',
+  backgroundColor: 'white',
+  WebkitTextFillColor: '#171717',
+  outline: 'none',
+  fontFamily: FONT,
+  boxSizing: 'border-box',
+}
+
+const btnPrimary: React.CSSProperties = {
+  width: '100%',
+  backgroundColor: '#26452B',
+  color: 'white',
+  padding: '14px',
+  borderRadius: 12,
+  fontWeight: 600,
+  fontSize: 15,
+  border: 'none',
+  cursor: 'pointer',
+  fontFamily: FONT,
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#3B2A1F',
+  marginBottom: 8,
+  fontFamily: FONT,
+}
 
 export default function Home() {
   const router = useRouter()
@@ -12,68 +50,62 @@ export default function Home() {
   const [step, setStep] = useState<'phone' | 'otp' | 'done'>('phone')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [otpFocused, setOtpFocused] = useState(false)
 
-async function sendOtp() {
-  setLoading(true)
-  setError('')
-  const formatted = phone.startsWith('+') ? phone : `+976${phone}`
-  console.log('Attempting OTP send to:', formatted)
-  const { data, error } = await supabase.auth.signInWithOtp({ phone: formatted })
-  console.log('Response data:', data)
-  console.log('Response error:', error)
-  if (error) {
-    setError(error.message)
-  } else {
-    setStep('otp')
-  }
-  setLoading(false)
-}
-
-async function verifyOtp() {
-  setLoading(true)
-  setError('')
-  const formatted = phone.startsWith('+') ? phone : `+976${phone}`
-  const { data, error } = await supabase.auth.verifyOtp({
-    phone: formatted,
-    token: otp,
-    type: 'sms'
-  })
-  if (error) {
-    setError(error.message)
+  async function sendOtp() {
+    setLoading(true)
+    setError('')
+    const formatted = phone.startsWith('+') ? phone : `+976${phone}`
+    console.log('Attempting OTP send to:', formatted)
+    const { data, error } = await supabase.auth.signInWithOtp({ phone: formatted })
+    console.log('Response data:', data)
+    console.log('Response error:', error)
+    if (error) {
+      setError(error.message)
+    } else {
+      setStep('otp')
+    }
     setLoading(false)
-    return
   }
 
-  // Smart routing: inspect the user's state and send them to the right place.
-  const userId = data.session?.user.id
-  if (!userId) {
-    router.push('/onboarding')
-    return
+  async function verifyOtp() {
+    setLoading(true)
+    setError('')
+    const formatted = phone.startsWith('+') ? phone : `+976${phone}`
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: formatted,
+      token: otp,
+      type: 'sms'
+    })
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    const userId = data.session?.user.id
+    if (!userId) {
+      router.push('/onboarding')
+      return
+    }
+    const state = await getUserState(userId)
+    router.push(landingRoute(state))
+    setLoading(false)
   }
-  const state = await getUserState(userId)
-  router.push(landingRoute(state))
-  setLoading(false)
-}
 
   return (
-    <main className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
-      <div className="w-full max-w-sm">
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+      <div style={{ width: '100%', maxWidth: 384 }}>
 
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-            <span className="text-3xl">🐾</span>
-          </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Dog Adventure Hikes</h1>
-          <p className="text-gray-500 mt-1 text-sm">Ulaanbaatar</p>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <Image src="/images/logo.png" width={160} height={120} alt="Tails to Trails" style={{ objectFit: 'contain' }} />
         </div>
 
         {step === 'phone' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Phone number
-            </label>
-            <div className="flex gap-2 mb-1">
-              <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+            <label style={labelStyle}>Phone number</label>
+            <div style={{ display: 'flex', marginBottom: 6 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 14px', border: '1px solid #E8E2D9', borderRight: 'none', borderRadius: '10px 0 0 10px', backgroundColor: '#F0EBE3', color: '#3B2A1F', fontSize: 14, fontFamily: FONT, whiteSpace: 'nowrap', flexShrink: 0 }}>
                 +976
               </span>
               <input
@@ -82,16 +114,17 @@ async function verifyOtp() {
                 onChange={e => setPhone(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !loading && phone.length >= 7) sendOtp() }}
                 placeholder="8800 0000"
-                className="flex-1 rounded-r-lg border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                style={{ color: '#171717', backgroundColor: '#FFFFFF', WebkitTextFillColor: '#171717' }}
+                style={{ ...inputBase, flex: 1, borderRadius: '0 10px 10px 0' }}
               />
             </div>
-            <p className="text-xs text-gray-400 mb-6">We&apos;ll send you a verification code</p>
-            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            <p style={{ color: '#8A7E72', fontSize: 13, marginBottom: 24, fontFamily: FONT }}>
+              We&apos;ll send you a verification code
+            </p>
+            {error && <p style={{ color: '#ef4444', fontSize: 14, marginBottom: 16 }}>{error}</p>}
             <button
               onClick={sendOtp}
               disabled={loading || phone.length < 7}
-              className="w-full bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+              style={{ ...btnPrimary, opacity: loading || phone.length < 7 ? 0.5 : 1, cursor: loading || phone.length < 7 ? 'not-allowed' : 'pointer' }}
             >
               {loading ? 'Sending...' : 'Send verification code'}
             </button>
@@ -100,34 +133,33 @@ async function verifyOtp() {
 
         {step === 'otp' && (
           <div>
-            <p className="text-sm text-gray-600 mb-6">
+            <p style={{ fontSize: 14, color: '#8A7E72', marginBottom: 24, fontFamily: FONT }}>
               Enter the 6-digit code sent to{' '}
-              <span className="font-medium text-gray-900">+976 {phone}</span>
+              <span style={{ fontWeight: 600, color: '#3B2A1F' }}>+976 {phone}</span>
             </p>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Verification code
-            </label>
+            <label style={labelStyle}>Verification code</label>
             <input
               type="number"
               value={otp}
               onChange={e => setOtp(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !loading && otp.length >= 6) verifyOtp() }}
+              onFocus={() => setOtpFocused(true)}
+              onBlur={() => setOtpFocused(false)}
               placeholder="000000"
               maxLength={6}
-              className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-green-500 mb-6"
-              style={{ color: '#171717', backgroundColor: '#FFFFFF', WebkitTextFillColor: '#171717' }}
+              style={{ ...inputBase, width: '100%', textAlign: 'center', letterSpacing: '0.25em', fontSize: 22, marginBottom: 24, border: otpFocused ? '2px solid #26452B' : '1px solid #E8E2D9' }}
             />
-            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            {error && <p style={{ color: '#ef4444', fontSize: 14, marginBottom: 16 }}>{error}</p>}
             <button
               onClick={verifyOtp}
               disabled={loading || otp.length < 6}
-              className="w-full bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+              style={{ ...btnPrimary, marginBottom: 12, opacity: loading || otp.length < 6 ? 0.5 : 1, cursor: loading || otp.length < 6 ? 'not-allowed' : 'pointer' }}
             >
               {loading ? 'Verifying...' : 'Verify code'}
             </button>
             <button
               onClick={() => setStep('phone')}
-              className="w-full mt-3 text-sm text-gray-500 hover:text-gray-700"
+              style={{ width: '100%', background: 'none', border: 'none', fontSize: 14, color: '#8A7E72', cursor: 'pointer', padding: '8px', fontFamily: FONT }}
             >
               ← Change number
             </button>
@@ -135,12 +167,12 @@ async function verifyOtp() {
         )}
 
         {step === 'done' && (
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-              <span className="text-3xl">✓</span>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 16 }}>
+              <span style={{ fontSize: 28, color: '#26452B', fontWeight: 700 }}>✓</span>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">You&apos;re in</h2>
-            <p className="text-gray-500 text-sm">Setting up your profile...</p>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#3B2A1F', marginBottom: 8, fontFamily: FONT }}>You&apos;re in</h2>
+            <p style={{ color: '#8A7E72', fontSize: 14, fontFamily: FONT }}>Setting up your profile...</p>
           </div>
         )}
 

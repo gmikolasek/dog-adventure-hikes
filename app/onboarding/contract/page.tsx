@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
 const sections = [
   {
     id: 'service',
@@ -80,38 +82,41 @@ export default function Contract() {
     setLoading(false)
   }
 
-  return (
-    <main className="min-h-screen bg-white px-6 py-10">
-      <div className="w-full max-w-sm mx-auto">
+  const remaining = sections.filter(s => !checked[s.id]).length
 
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-            <span className="text-3xl">📋</span>
+  return (
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, padding: '40px 24px' }}>
+      <div style={{ width: '100%', maxWidth: 384, margin: '0 auto' }}>
+
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 16 }}>
+            <span style={{ fontSize: 28 }}>📋</span>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Service agreement</h1>
-          <p className="text-gray-500 mt-1 text-sm">Please read and confirm each section</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT }}>Service agreement</h1>
+          <p style={{ color: '#8A7E72', marginTop: 4, fontSize: 14, fontFamily: FONT }}>Please read and confirm each section</p>
         </div>
 
-        <div className="space-y-4 mb-8">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
           {sections.map(section => (
             <div
               key={section.id}
-              className={`rounded-xl border-2 p-4 transition-colors ${
-                checked[section.id]
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200'
-              }`}
+              style={{
+                borderRadius: 12,
+                border: checked[section.id] ? '2px solid #26452B' : '1px solid #E8E2D9',
+                backgroundColor: checked[section.id] ? '#E8F0E5' : 'white',
+                padding: 16,
+              }}
             >
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">{section.title}</h3>
-              <p className="text-xs text-gray-600 leading-relaxed mb-3">{section.body}</p>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: '#3B2A1F', marginBottom: 8, fontFamily: FONT }}>{section.title}</h3>
+              <p style={{ fontSize: 12, color: '#3B2A1F', lineHeight: 1.6, marginBottom: 12, fontFamily: FONT }}>{section.body}</p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={checked[section.id] ?? false}
                   onChange={() => toggle(section.id)}
-                  className="h-4 w-4 text-green-600 rounded border-gray-300"
+                  style={{ width: 16, height: 16, accentColor: '#26452B', flexShrink: 0 }}
                 />
-                <span className="text-xs font-medium text-gray-700">
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#3B2A1F', fontFamily: FONT }}>
                   I have read and agree to this section
                 </span>
               </label>
@@ -119,17 +124,17 @@ export default function Contract() {
           ))}
         </div>
 
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        {error && <p style={{ color: '#ef4444', fontSize: 14, marginBottom: 16 }}>{error}</p>}
 
         <button
           onClick={acceptContract}
           disabled={!allChecked || loading}
-          className="w-full bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+          style={{ width: '100%', backgroundColor: '#26452B', color: 'white', padding: '14px', borderRadius: 12, fontWeight: 600, fontSize: 15, border: 'none', cursor: allChecked && !loading ? 'pointer' : 'not-allowed', opacity: allChecked && !loading ? 1 : 0.5, fontFamily: FONT }}
         >
-          {loading ? 'Submitting...' : allChecked ? 'Accept and submit profile →' : `${sections.filter(s => !checked[s.id]).length} section${sections.filter(s => !checked[s.id]).length !== 1 ? 's' : ''} remaining`}
+          {loading ? 'Submitting...' : allChecked ? 'Accept and submit profile →' : `${remaining} section${remaining !== 1 ? 's' : ''} remaining`}
         </button>
 
-        <p className="text-xs text-gray-400 text-center mt-4">
+        <p style={{ fontSize: 12, color: '#8A7E72', textAlign: 'center', marginTop: 16, fontFamily: FONT }}>
           Your profile will be reviewed by our team before your first booking.
         </p>
 

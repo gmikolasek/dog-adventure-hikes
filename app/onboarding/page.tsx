@@ -1,8 +1,34 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+const inputBase: React.CSSProperties = {
+  width: '100%',
+  borderRadius: 10,
+  border: '1px solid #E8E2D9',
+  padding: '12px',
+  fontSize: 14,
+  color: '#171717',
+  backgroundColor: 'white',
+  WebkitTextFillColor: '#171717',
+  outline: 'none',
+  fontFamily: FONT,
+  boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#3B2A1F',
+  marginBottom: 8,
+  fontFamily: FONT,
+}
 
 export default function Onboarding() {
   const [name, setName] = useState('')
@@ -43,80 +69,73 @@ export default function Onboarding() {
     setLoading(false)
   }
 
-  return (
-    <main className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
-      <div className="w-full max-w-sm">
+  const canSubmit = !loading && name.trim().length >= 2 && address.trim().length >= 5
 
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-            <span className="text-3xl">👋</span>
-          </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Welcome</h1>
-          <p className="text-gray-500 mt-1 text-sm">Tell us a little about yourself</p>
+  return (
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: 384 }}>
+
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <Image src="/images/logo.png" width={160} height={120} alt="Tails to Trails" style={{ objectFit: 'contain' }} />
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#3B2A1F', marginTop: 16, marginBottom: 6, fontFamily: FONT }}>Welcome</h1>
+          <p style={{ color: '#8A7E72', fontSize: 15, fontFamily: FONT }}>Tell us a little about yourself</p>
         </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Your name
-          </label>
+        <div style={{ marginBottom: 24 }}>
+          <label style={labelStyle}>Your name</label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !loading && name.trim().length >= 2 && address.trim().length >= 5) saveProfile() }}
+            onKeyDown={e => { if (e.key === 'Enter' && canSubmit) saveProfile() }}
             placeholder="e.g. Enkhjargal"
-            className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            style={inputBase}
           />
         </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Pickup address
-          </label>
+        <div style={{ marginBottom: 24 }}>
+          <label style={labelStyle}>Pickup address</label>
           <textarea
             value={address}
             onChange={e => setAddress(e.target.value)}
             placeholder="District, khoroo, building / apartment — where the van should collect your dog"
             rows={3}
-            className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+            style={{ ...inputBase, resize: 'none' }}
           />
-          <p className="text-xs text-gray-400 mt-1">We use this to assign your hiking zone.</p>
+          <p style={{ color: '#8A7E72', fontSize: 12, marginTop: 4, fontFamily: FONT }}>We use this to assign your hiking zone.</p>
         </div>
 
-        <div className="mb-8">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Preferred language
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setLanguage('en')}
-              className={`py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
-                language === 'en'
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-gray-200 text-gray-600'
-              }`}
-            >
-              🇬🇧 English
-            </button>
-            <button
-              onClick={() => setLanguage('mn')}
-              className={`py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
-                language === 'mn'
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-gray-200 text-gray-600'
-              }`}
-            >
-              🇲🇳 Mongolian
-            </button>
+        <div style={{ marginBottom: 32 }}>
+          <label style={{ ...labelStyle, marginBottom: 12 }}>Preferred language</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {(['en', 'mn'] as const).map(lang => (
+              <button
+                key={lang}
+                onClick={() => setLanguage(lang)}
+                style={{
+                  padding: '12px',
+                  borderRadius: 10,
+                  border: language === lang ? '2px solid #26452B' : '1px solid #E8E2D9',
+                  backgroundColor: language === lang ? '#E8F0E5' : 'white',
+                  color: language === lang ? '#26452B' : '#8A7E72',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                {lang === 'en' ? '🇬🇧 English' : '🇲🇳 Mongolian'}
+              </button>
+            ))}
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        {error && <p style={{ color: '#ef4444', fontSize: 14, marginBottom: 16 }}>{error}</p>}
 
         <button
           onClick={saveProfile}
-          disabled={loading || name.trim().length < 2 || address.trim().length < 5}
-          className="w-full bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+          disabled={!canSubmit}
+          style={{ width: '100%', backgroundColor: '#26452B', color: 'white', padding: '14px', borderRadius: 12, fontWeight: 600, fontSize: 15, border: 'none', cursor: canSubmit ? 'pointer' : 'not-allowed', opacity: canSubmit ? 1 : 0.5, fontFamily: FONT }}
         >
           {loading ? 'Saving...' : 'Continue →'}
         </button>

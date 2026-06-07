@@ -5,6 +5,31 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { uploadDogProfilePhoto } from '@/lib/photos'
 
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+const inputBase: React.CSSProperties = {
+  width: '100%',
+  borderRadius: 10,
+  border: '1px solid #E8E2D9',
+  padding: '12px',
+  fontSize: 14,
+  color: '#171717',
+  backgroundColor: 'white',
+  WebkitTextFillColor: '#171717',
+  outline: 'none',
+  fontFamily: FONT,
+  boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#3B2A1F',
+  marginBottom: 8,
+  fontFamily: FONT,
+}
+
 export default function DogProfile() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -37,27 +62,33 @@ export default function DogProfile() {
     onChange: (v: number) => void
   }) {
     return (
-      <div className="mb-5">
-        <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-        <div className="flex gap-2">
+      <div style={{ marginBottom: 20 }}>
+        <label style={labelStyle}>{label}</label>
+        <div style={{ display: 'flex', gap: 8 }}>
           {[1, 2, 3, 4, 5].map(n => (
             <button
               key={n}
               type="button"
               onClick={() => onChange(n)}
-              className={`w-10 h-10 rounded-full text-sm font-medium border-2 transition-colors ${
-                value === n
-                  ? 'bg-green-600 border-green-600 text-white'
-                  : 'border-gray-200 text-gray-500 hover:border-green-400'
-              }`}
+              style={{
+                width: 40, height: 40,
+                borderRadius: '50%',
+                fontSize: 14,
+                fontWeight: 500,
+                border: value === n ? 'none' : '1px solid #E8E2D9',
+                backgroundColor: value === n ? '#26452B' : 'white',
+                color: value === n ? 'white' : '#3B2A1F',
+                cursor: 'pointer',
+                fontFamily: FONT,
+              }}
             >
               {n}
             </button>
           ))}
         </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-xs text-gray-400">Poor</span>
-          <span className="text-xs text-gray-400">Excellent</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+          <span style={{ fontSize: 12, color: '#8A7E72', fontFamily: FONT }}>Poor</span>
+          <span style={{ fontSize: 12, color: '#8A7E72', fontFamily: FONT }}>Excellent</span>
         </div>
       </div>
     )
@@ -69,31 +100,29 @@ export default function DogProfile() {
     onChange: (v: boolean) => void
   }) {
     return (
-      <div className="mb-5">
-        <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => onChange(true)}
-            className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
-              value === true
-                ? 'border-green-500 bg-green-50 text-green-700'
-                : 'border-gray-200 text-gray-600'
-            }`}
-          >
-            Yes
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange(false)}
-            className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
-              value === false
-                ? 'border-green-500 bg-green-50 text-green-700'
-                : 'border-gray-200 text-gray-600'
-            }`}
-          >
-            No
-          </button>
+      <div style={{ marginBottom: 20 }}>
+        <label style={labelStyle}>{label}</label>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {([true, false] as const).map(v => (
+            <button
+              key={String(v)}
+              type="button"
+              onClick={() => onChange(v)}
+              style={{
+                flex: 1, padding: '10px',
+                borderRadius: 10,
+                border: value === v ? '2px solid #26452B' : '1px solid #E8E2D9',
+                backgroundColor: value === v ? '#E8F0E5' : 'white',
+                color: value === v ? '#26452B' : '#8A7E72',
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: FONT,
+              }}
+            >
+              {v ? 'Yes' : 'No'}
+            </button>
+          ))}
         </div>
       </div>
     )
@@ -163,29 +192,39 @@ export default function DogProfile() {
   const step1Valid = name.length >= 1 && breed.length >= 1 && sex !== ''
   const step2Valid = recallScore > 0 && carScore > 0 && socialScore > 0 && airtag !== null
 
+  const btnBack: React.CSSProperties = {
+    flex: 1, padding: '12px', borderRadius: 12,
+    border: '1px solid #E8E2D9', fontSize: 14, fontWeight: 500,
+    color: '#3B2A1F', backgroundColor: 'white', cursor: 'pointer', fontFamily: FONT,
+  }
+  const btnNext = (disabled: boolean): React.CSSProperties => ({
+    flex: 1, backgroundColor: '#26452B', color: 'white',
+    padding: '12px', borderRadius: 12, fontWeight: 600, fontSize: 14,
+    border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1, fontFamily: FONT,
+  })
+
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
-      <div className="w-full max-w-sm mx-auto">
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, padding: '40px 24px' }}>
+      <div style={{ width: '100%', maxWidth: 384, margin: '0 auto' }}>
 
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-            <span className="text-3xl">🐕</span>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 16 }}>
+            <span style={{ fontSize: 28 }}>🐕</span>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Your dog</h1>
-          <p className="text-gray-500 mt-1 text-sm">
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT }}>Your dog</h1>
+          <p style={{ color: '#8A7E72', marginTop: 4, fontSize: 14, fontFamily: FONT }}>
             {step === 1 ? 'Basic information' : step === 2 ? 'Behaviour and equipment' : 'Almost done'}
           </p>
         </div>
 
         {/* Progress */}
-        <div className="flex gap-2 mb-8">
+        <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
           {[1, 2, 3].map(n => (
             <div
               key={n}
-              className={`flex-1 h-1.5 rounded-full transition-colors ${
-                n <= step ? 'bg-green-500' : 'bg-gray-200'
-              }`}
+              style={{ flex: 1, height: 6, borderRadius: 4, backgroundColor: n <= step ? '#26452B' : '#E8E2D9' }}
             />
           ))}
         </div>
@@ -194,97 +233,62 @@ export default function DogProfile() {
         {step === 1 && (
           <div>
             {/* Photo picker */}
-            <div className="flex justify-center mb-6">
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
               <button
                 type="button"
                 onClick={() => photoInputRef.current?.click()}
-                className="relative"
+                style={{ position: 'relative', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
               >
                 {photoPreview ? (
-                  <div
-                    className="w-24 h-24 rounded-full bg-cover bg-center"
-                    style={{ backgroundImage: `url(${photoPreview})` }}
-                  />
+                  <div style={{ width: 96, height: 96, borderRadius: '50%', backgroundImage: `url(${photoPreview})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                 ) : (
-                  <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">
-                    <span className="text-4xl">🐕</span>
+                  <div style={{ width: 96, height: 96, borderRadius: '50%', backgroundColor: '#E8F0E5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 36 }}>🐕</span>
                   </div>
                 )}
-                <div className="absolute bottom-0 right-0 w-7 h-7 bg-green-600 rounded-full flex items-center justify-center text-white text-xs shadow-md">
+                <div style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, backgroundColor: '#26452B', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
                   📷
                 </div>
               </button>
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoChange}
-              />
+              <input ref={photoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
             </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Dog's name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
-                placeholder="e.g. Nokhoi"
-                className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+            <div style={{ marginBottom: 20 }}>
+              <label style={labelStyle}>Dog&apos;s name</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }} placeholder="e.g. Nokhoi" style={inputBase} />
             </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Breed</label>
-              <input
-                type="text"
-                value={breed}
-                onChange={e => setBreed(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
-                placeholder="e.g. Bankhar, Mixed, Labrador"
-                className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+            <div style={{ marginBottom: 20 }}>
+              <label style={labelStyle}>Breed</label>
+              <input type="text" value={breed} onChange={e => setBreed(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }} placeholder="e.g. Bankhar, Mixed, Labrador" style={inputBase} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-5">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Age (years)</label>
-                <input
-                  type="number"
-                  value={ageYears}
-                  onChange={e => setAgeYears(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
-                  placeholder="3"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                <label style={labelStyle}>Age (years)</label>
+                <input type="number" value={ageYears} onChange={e => setAgeYears(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }} placeholder="3" style={inputBase} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Weight (kg)</label>
-                <input
-                  type="number"
-                  value={weightKg}
-                  onChange={e => setWeightKg(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }}
-                  placeholder="28"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                <label style={labelStyle}>Weight (kg)</label>
+                <input type="number" value={weightKg} onChange={e => setWeightKg(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && step1Valid) setStep(2) }} placeholder="28" style={inputBase} />
               </div>
             </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sex</label>
-              <div className="flex gap-3">
+            <div style={{ marginBottom: 20 }}>
+              <label style={labelStyle}>Sex</label>
+              <div style={{ display: 'flex', gap: 12 }}>
                 {(['male', 'female'] as const).map(s => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setSex(s)}
-                    className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium capitalize transition-colors ${
-                      sex === s
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 text-gray-600'
-                    }`}
+                    style={{
+                      flex: 1, padding: '10px', borderRadius: 10,
+                      border: sex === s ? '2px solid #26452B' : '1px solid #E8E2D9',
+                      backgroundColor: sex === s ? '#E8F0E5' : 'white',
+                      color: sex === s ? '#26452B' : '#8A7E72',
+                      fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: FONT,
+                    }}
                   >
                     {s === 'male' ? '♂ Male' : '♀ Female'}
                   </button>
@@ -292,17 +296,9 @@ export default function DogProfile() {
               </div>
             </div>
 
-            <YesNo
-              label="Spayed / neutered?"
-              value={neutered}
-              onChange={setNeutered}
-            />
+            <YesNo label="Spayed / neutered?" value={neutered} onChange={setNeutered} />
 
-            <button
-              onClick={() => setStep(2)}
-              disabled={!step1Valid}
-              className="w-full bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
-            >
+            <button onClick={() => setStep(2)} disabled={!step1Valid} style={{ width: '100%', backgroundColor: '#26452B', color: 'white', padding: '14px', borderRadius: 12, fontWeight: 600, fontSize: 15, border: 'none', cursor: step1Valid ? 'pointer' : 'not-allowed', opacity: step1Valid ? 1 : 0.5, fontFamily: FONT }}>
               Continue →
             </button>
           </div>
@@ -311,52 +307,16 @@ export default function DogProfile() {
         {/* Step 2: Behaviour */}
         {step === 2 && (
           <div>
-            <ScoreSelector
-              label="Off-leash recall (1 = poor, 5 = excellent)"
-              value={recallScore}
-              onChange={setRecallScore}
-            />
-            <ScoreSelector
-              label="Behaviour in car (1 = poor, 5 = excellent)"
-              value={carScore}
-              onChange={setCarScore}
-            />
-            <ScoreSelector
-              label="Sociability with other dogs (1 = poor, 5 = excellent)"
-              value={socialScore}
-              onChange={setSocialScore}
-            />
+            <ScoreSelector label="Off-leash recall (1 = poor, 5 = excellent)" value={recallScore} onChange={setRecallScore} />
+            <ScoreSelector label="Behaviour in car (1 = poor, 5 = excellent)" value={carScore} onChange={setCarScore} />
+            <ScoreSelector label="Sociability with other dogs (1 = poor, 5 = excellent)" value={socialScore} onChange={setSocialScore} />
+            <YesNo label="Any known aggression towards dogs or people?" value={knownAggression} onChange={setKnownAggression} />
+            <YesNo label="Does your dog have an AirTag collar?" value={airtag} onChange={setAirtag} />
+            <YesNo label="Does your dog have an e-collar?" value={ecollar} onChange={setEcollar} />
 
-            <YesNo
-              label="Any known aggression towards dogs or people?"
-              value={knownAggression}
-              onChange={setKnownAggression}
-            />
-            <YesNo
-              label="Does your dog have an AirTag collar?"
-              value={airtag}
-              onChange={setAirtag}
-            />
-            <YesNo
-              label="Does your dog have an e-collar?"
-              value={ecollar}
-              onChange={setEcollar}
-            />
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 py-3 rounded-xl border border-gray-300 text-sm font-medium text-gray-600"
-              >
-                ← Back
-              </button>
-              <button
-                onClick={() => setStep(3)}
-                disabled={!step2Valid}
-                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
-              >
-                Continue →
-              </button>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setStep(1)} style={btnBack}>← Back</button>
+              <button onClick={() => setStep(3)} disabled={!step2Valid} style={btnNext(!step2Valid)}>Continue →</button>
             </div>
           </div>
         )}
@@ -364,60 +324,47 @@ export default function DogProfile() {
         {/* Step 3: Notes */}
         {step === 3 && (
           <div>
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Disposition and socialisation
-              </label>
+            <div style={{ marginBottom: 20 }}>
+              <label style={labelStyle}>Disposition and socialisation</label>
               <textarea
                 value={dispositionNotes}
                 onChange={e => setDispositionNotes(e.target.value)}
                 placeholder="Describe your dog's personality, how they behave with unfamiliar dogs and people, energy level..."
                 rows={4}
-                className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                style={{ ...inputBase, resize: 'none' }}
               />
             </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Anything else we should know?
-              </label>
+            <div style={{ marginBottom: 20 }}>
+              <label style={labelStyle}>Anything else we should know?</label>
               <textarea
                 value={otherNotes}
                 onChange={e => setOtherNotes(e.target.value)}
                 placeholder="Allergies, fears, medical conditions, medications..."
                 rows={3}
-                className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                style={{ ...inputBase, resize: 'none' }}
               />
             </div>
 
-            <div className="mb-6 p-4 bg-green-50 rounded-xl border border-green-200">
-              <label className="flex items-start gap-3 cursor-pointer">
+            <div style={{ marginBottom: 24, padding: 16, backgroundColor: '#E8F0E5', borderRadius: 12, border: '1px solid #C8DBBE' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={trainingInterest}
                   onChange={e => setTrainingInterest(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 text-green-600 rounded"
+                  style={{ marginTop: 2, width: 16, height: 16, accentColor: '#26452B', flexShrink: 0 }}
                 />
-                <span className="text-sm text-gray-700">
-                  I'm interested in training sessions for my dog
+                <span style={{ fontSize: 14, color: '#3B2A1F', fontFamily: FONT }}>
+                  I&apos;m interested in training sessions for my dog
                 </span>
               </label>
             </div>
 
-            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            {error && <p style={{ color: '#ef4444', fontSize: 14, marginBottom: 16 }}>{error}</p>}
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(2)}
-                className="flex-1 py-3 rounded-xl border border-gray-300 text-sm font-medium text-gray-600"
-              >
-                ← Back
-              </button>
-              <button
-                onClick={saveDog}
-                disabled={loading}
-                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
-              >
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setStep(2)} style={btnBack}>← Back</button>
+              <button onClick={saveDog} disabled={loading} style={btnNext(loading)}>
                 {loading ? 'Saving...' : 'Save dog →'}
               </button>
             </div>
