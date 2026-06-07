@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { uploadDogProfilePhoto } from '@/lib/photos'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
 
@@ -137,16 +135,13 @@ export default function DogProfile() {
     reader.readAsDataURL(file)
   }
 
-  async function saveDog() {
-    setLoading(true)
-    setError('')
+  // Dog data is stored in localStorage here and written to Supabase
+  // after phone auth completes at the end of the onboarding flow.
+  // photoPreview (base64 data URL) is stored so the photo can be
+  // uploaded after a session is available.
 
-    const { data: { session } } = await supabase.auth.getSession()
-    // if (!session) { router.push('/'); return }
-    if (!session) return
-
-    const { data: inserted, error: insertError } = await supabase.from('dogs').insert({
-      owner_id: session.user.id,
+  function saveDog() {
+    localStorage.setItem('onboarding_dog', JSON.stringify({
       name,
       breed,
       age_years: ageYears ? parseInt(ageYears) : null,
@@ -161,32 +156,10 @@ export default function DogProfile() {
       known_aggression: knownAggression ?? false,
       airtag_confirmed: airtag ?? false,
       ecollar: ecollar ?? false,
-      approval_status: 'pending',
-    }).select('id')
-
-    if (insertError) {
-      setError(insertError.message)
-      setLoading(false)
-      return
-    }
-
-    // Save training interest to user record
-    await supabase
-      .from('users')
-      .update({ training_interest: trainingInterest })
-      .eq('id', session.user.id)
-
-    // Upload profile photo if one was chosen
-    const dogId = inserted?.[0]?.id
-    if (photoFile && dogId) {
-      const photoUrl = await uploadDogProfilePhoto(photoFile, session.user.id, dogId)
-      if (photoUrl) {
-        await supabase.from('dogs').update({ photo_url: photoUrl }).eq('id', dogId)
-      }
-    }
-
+      training_interest: trainingInterest,
+      photo_data_url: photoPreview,
+    }))
     router.push('/onboarding/contract')
-    setLoading(false)
   }
 
   const step1Valid = name.length >= 1 && breed.length >= 1 && sex !== ''

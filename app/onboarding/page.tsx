@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 
@@ -38,35 +37,12 @@ export default function Onboarding() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  // No auth guard here — unauthenticated users reach this page from the
-  // landing page "Get Started" button. The saveProfile handler below checks
-  // for a session before writing to the DB.
+  // Profile data is stored in localStorage here and written to Supabase
+  // after phone auth completes at the end of the onboarding flow.
 
-  async function saveProfile() {
-    setLoading(true)
-    setError('')
-
-    const { data: { session } } = await supabase.auth.getSession()
-    // if (!session) { router.push('/'); return }
-    if (!session) return
-
-    const { error } = await supabase
-      .from('users')
-      .upsert({
-        id: session.user.id,
-        phone: session.user.phone,
-        name,
-        language,
-        address,
-        role: 'client',
-      })
-
-    if (error) {
-      setError(error.message)
-    } else {
-      router.push('/onboarding/dog')
-    }
-    setLoading(false)
+  function saveProfile() {
+    localStorage.setItem('onboarding_profile', JSON.stringify({ name, language, address }))
+    router.push('/onboarding/dog')
   }
 
   const canSubmit = !loading && name.trim().length >= 2 && address.trim().length >= 5

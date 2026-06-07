@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
@@ -61,25 +60,13 @@ export default function Contract() {
     setChecked(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  async function acceptContract() {
-    setLoading(true)
-    setError('')
+  // Contract acceptance is stored in localStorage here. All onboarding
+  // data (profile + dog + contract) is written to Supabase after the
+  // user completes phone auth on the login page.
 
-    const { data: { session } } = await supabase.auth.getSession()
-    // if (!session) { router.push('/'); return }
-    if (!session) return
-
-    const { error } = await supabase
-      .from('users')
-      .update({ approved_at: null })
-      .eq('id', session.user.id)
-
-    if (error) {
-      setError(error.message)
-    } else {
-      router.push('/onboarding/pending')
-    }
-    setLoading(false)
+  function acceptContract() {
+    localStorage.setItem('onboarding_contract', JSON.stringify({ accepted: true }))
+    router.push('/login')
   }
 
   const remaining = sections.filter(s => !checked[s.id]).length
