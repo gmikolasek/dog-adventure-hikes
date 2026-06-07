@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -53,12 +53,6 @@ export default function Contract() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push('/')
-    })
-  }, [router])
-
   const allChecked = sections.every(s => checked[s.id])
 
   function toggle(id: string) {
@@ -70,7 +64,7 @@ export default function Contract() {
     setError('')
 
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { router.push('/'); return }
+    // if (!session) { router.push('/'); return }
 
     const { error } = await supabase
       .from('users')

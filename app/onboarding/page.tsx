@@ -21,10 +21,7 @@ export default function Onboarding() {
     setError('')
 
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/')
-      return
-    }
+    // if (!session) { router.push('/'); return }
 
     const { error } = await supabase
       .from('users')

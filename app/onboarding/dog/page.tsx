@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { uploadDogProfilePhoto } from '@/lib/photos'
@@ -30,12 +30,6 @@ export default function DogProfile() {
   const [airtag, setAirtag] = useState<boolean | null>(null)
   const [ecollar, setEcollar] = useState<boolean | null>(null)
   const [trainingInterest, setTrainingInterest] = useState(false)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push('/')
-    })
-  }, [router])
 
   function ScoreSelector({ label, value, onChange }: {
     label: string
@@ -119,7 +113,7 @@ export default function DogProfile() {
     setError('')
 
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { router.push('/'); return }
+    // if (!session) { router.push('/'); return }
 
     const { data: inserted, error: insertError } = await supabase.from('dogs').insert({
       owner_id: session.user.id,

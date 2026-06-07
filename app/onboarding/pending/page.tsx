@@ -14,7 +14,7 @@ export default function Pending() {
     async function check() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!active) return
-      if (!session) { router.push('/'); return }
+      if (!session) return
 
       const state = await getUserState(session.user.id)
       if (!active) return
