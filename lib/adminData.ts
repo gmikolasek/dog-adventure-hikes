@@ -8,7 +8,7 @@ export type ClientDog = {
   approval_status: string | null
 }
 
-export type ClientStatus = 'active' | 'pending' | 'incomplete'
+export type ClientStatus = 'active' | 'pending' | 'incomplete' | 'rejected'
 
 export type ClientRow = {
   id: string
@@ -24,16 +24,18 @@ export type ClientRow = {
   lastBooking: string | null
 }
 
-export function clientStatus(approvedAt: string | null, zoneId: string | null, dogCount: number): ClientStatus {
-  if (approvedAt && zoneId) return 'active'
-  if (dogCount > 0) return 'pending'
+export function clientStatus(dogs: ClientDog[]): ClientStatus {
+  if (dogs.some(d => d.approval_status === 'approved' || d.approval_status === 'approved_with_conditions')) return 'active'
+  if (dogs.some(d => d.approval_status === 'declined')) return 'rejected'
+  if (dogs.length > 0) return 'pending'
   return 'incomplete'
 }
 
 export const STATUS_LABEL: Record<ClientStatus, string> = {
-  active: 'Active',
-  pending: 'Pending',
+  active:     'Active',
+  pending:    'Pending',
   incomplete: 'Incomplete',
+  rejected:   'Rejected',
 }
 
 export async function getClients(): Promise<ClientRow[]> {
@@ -109,7 +111,7 @@ export async function getClients(): Promise<ClientRow[]> {
       zoneId: u.zone_id,
       zoneName: u.zone_id ? (zoneName[u.zone_id] ?? null) : null,
       dogs,
-      status: clientStatus(u.approved_at, u.zone_id, dogs.length),
+      status: clientStatus(dogs),
       lastBooking: lastBookingByOwner[u.id] ?? null,
     }
   })

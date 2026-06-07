@@ -152,6 +152,7 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [resolvedStatus, setResolvedStatus] = useState<'approved' | 'approved_with_conditions' | null>(null)
 
   async function approve(status: 'approved' | 'approved_with_conditions') {
     setBusy(true)
@@ -171,8 +172,8 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
       setBusy(false)
       return
     }
-    // Continue to zone assignment for this dog's owner.
-    router.push(`/staff/zones/${dog.owner_id}?dog=${dog.id}`)
+    setResolvedStatus(status)
+    setBusy(false)
   }
 
   async function decline() {
@@ -246,8 +247,27 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
 
       {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
 
+      {/* Resolved state — show badge + zone assignment CTA */}
+      {resolvedStatus !== null && (
+        <div className="pt-1">
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+              resolvedStatus === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+            }`}>
+              {resolvedStatus === 'approved' ? 'Approved' : 'Approved with conditions'}
+            </span>
+          </div>
+          <button
+            onClick={() => router.push(`/staff/zones/${dog.owner_id}?dog=${dog.id}`)}
+            className="w-full bg-green-600 text-white py-2.5 rounded-xl font-medium text-sm hover:bg-green-700 transition-colors"
+          >
+            Assign zone →
+          </button>
+        </div>
+      )}
+
       {/* Actions */}
-      {mode === 'idle' && (
+      {resolvedStatus === null && mode === 'idle' && (
         <div className="space-y-2 pt-1">
           <button
             onClick={() => approve('approved')}
@@ -275,7 +295,7 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
         </div>
       )}
 
-      {mode === 'conditions' && (
+      {resolvedStatus === null && mode === 'conditions' && (
         <div className="pt-1">
           <label className="block text-sm font-medium text-gray-700 mb-2">Conditions for approval</label>
           <textarea
@@ -304,7 +324,7 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
         </div>
       )}
 
-      {mode === 'decline' && (
+      {resolvedStatus === null && mode === 'decline' && (
         <div className="pt-1">
           <label className="block text-sm font-medium text-gray-700 mb-2">Reason for declining</label>
           <textarea

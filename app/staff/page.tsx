@@ -423,11 +423,12 @@ function ActionRow({ title, subtitle, badge, icon, onClick }: {
   )
 }
 
-export function ClientStatusBadge({ status }: { status: 'active' | 'pending' | 'incomplete' }) {
+export function ClientStatusBadge({ status }: { status: 'active' | 'pending' | 'incomplete' | 'rejected' }) {
   const map = {
     active:     { label: 'Active',     cls: 'bg-green-100 text-green-700' },
     pending:    { label: 'Pending',    cls: 'bg-amber-100 text-amber-700' },
     incomplete: { label: 'Incomplete', cls: 'bg-gray-100 text-gray-500' },
+    rejected:   { label: 'Rejected',   cls: 'bg-red-100 text-red-700' },
   }
   const s = map[status]
   return (

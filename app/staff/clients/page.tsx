@@ -116,9 +116,10 @@ export default function ClientsList() {
 
 function StatusBadge({ status }: { status: ClientStatus }) {
   const cls: Record<ClientStatus, string> = {
-    active: 'bg-green-100 text-green-700',
-    pending: 'bg-amber-100 text-amber-700',
+    active:     'bg-green-100 text-green-700',
+    pending:    'bg-amber-100 text-amber-700',
     incomplete: 'bg-gray-100 text-gray-500',
+    rejected:   'bg-red-100 text-red-700',
   }
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${cls[status]}`}>
