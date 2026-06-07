@@ -114,6 +114,7 @@ export default function DogProfile() {
 
     const { data: { session } } = await supabase.auth.getSession()
     // if (!session) { router.push('/'); return }
+    if (!session) return
 
     const { data: inserted, error: insertError } = await supabase.from('dogs').insert({
       owner_id: session.user.id,

@@ -22,6 +22,7 @@ export default function Onboarding() {
 
     const { data: { session } } = await supabase.auth.getSession()
     // if (!session) { router.push('/'); return }
+    if (!session) return
 
     const { error } = await supabase
       .from('users')
