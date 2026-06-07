@@ -62,14 +62,14 @@ export default function LandingPage() {
         alt="Tails to Trails"
         fill
         priority
-        style={{ objectFit: 'cover', objectPosition: 'center top' }}
+        style={{ objectFit: 'cover', objectPosition: '60% center' }}
       />
 
       {/* Dark gradient overlay */}
       <div
         style={{
           position: 'absolute', inset: 0, zIndex: 1,
-          background: 'linear-gradient(to top, rgba(0,0,0,0.75) 40%, rgba(0,0,0,0.2) 100%)',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)',
         }}
       />
 
@@ -84,32 +84,9 @@ export default function LandingPage() {
           maxWidth: 420, width: '100%', margin: '0 auto',
         }}
       >
-        {/* Brand block */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
-          <h1
-            style={{
-              color: '#fff', fontWeight: 800, fontSize: 42,
-              letterSpacing: '0.2em', fontFamily: FONT,
-              marginBottom: 10,
-              textAlign: 'center', lineHeight: 1,
-            }}
-          >
-            TAILS TO TRAILS
-          </h1>
-
-          {/* Ruled subtitle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 300 }}>
-            <div style={{ flex: 1, height: 1, backgroundColor: '#E6C89A', opacity: 0.4 }} />
-            <p
-              style={{
-                color: '#E6C89A', fontSize: 14, letterSpacing: '0.25em',
-                fontFamily: FONT, fontWeight: 500, whiteSpace: 'nowrap',
-              }}
-            >
-              ADVENTURE HIKES MONGOLIA
-            </p>
-            <div style={{ flex: 1, height: 1, backgroundColor: '#E6C89A', opacity: 0.4 }} />
-          </div>
+        {/* Logo */}
+        <div style={{ marginBottom: 28 }}>
+          <Image src="/images/logo.png" alt="Tails to Trails" width={280} height={200} style={{ objectFit: 'contain' }} />
         </div>
 
         {/* Tagline */}
