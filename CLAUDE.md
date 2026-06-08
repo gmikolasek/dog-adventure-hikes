@@ -355,9 +355,9 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 
 2. **RLS blocks "Add dog" on run page** — `handleAddDog()` in `/staff/hikes/[date]/run/page.tsx` inserts into `bookings` with `staff_added: true`. This fails with a row-level security error because the RLS policy on `bookings` only allows inserts by the row's `owner_id`. Fix: add a Supabase RLS policy allowing staff role to insert into `bookings`, or use a SECURITY DEFINER RPC function for the insert.
 
-4. **Onboarding localStorage-deferred flow needs re-applying** — The localStorage-deferred auth flow (onboarding stores data client-side, flushed to Supabase after OTP) was implemented but the commits were hard-reset to `37b3346`. Needs clean re-implementation. `app/client/page.tsx` now exists so the 404 that triggered the revert won't recur.
-
 3. **Payment confirmation screen** — Post-payment success screen after booking completes has no brand token styling.
+
+4. **Onboarding localStorage-deferred flow needs re-applying** — The localStorage-deferred auth flow (onboarding stores data client-side, flushed to Supabase after OTP) was implemented but the commits were hard-reset to `37b3346`. Needs clean re-implementation. `app/client/page.tsx` now exists so the 404 that triggered the revert won't recur.
 
 5. **Notification sending deferred** — "ETA for pickup / ETA for drop-off" buttons on both the pre-hike and run pages are placeholders (`cursor: not-allowed`, "Coming soon" note). Implementation deferred.
 
