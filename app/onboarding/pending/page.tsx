@@ -27,11 +27,10 @@ export default function Pending() {
       const state = await getUserState(session.user.id)
       if (!active) return
 
-      // Approved (with or without conditions) AND placed in a zone → activated.
       const dogApproved = state.dogs.some(
         d => d.approval_status === 'approved' || d.approval_status === 'approved_with_conditions'
       )
-      if (dogApproved && state.profile?.zone_id) {
+      if (dogApproved) {
         router.push('/client/home')
       }
     }

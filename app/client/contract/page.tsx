@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
 
-export const sections = [
+// Same contract text as onboarding/contract
+const sections = [
   {
     id: 'service',
     title: '1. Service Overview',
@@ -49,101 +50,109 @@ export const sections = [
   },
 ]
 
-export default function Contract() {
-  const [checked, setChecked] = useState<Record<string, boolean>>({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`
+}
+
+function BackArrow() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#26452B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  )
+}
+
+export default function ContractView() {
   const router = useRouter()
+  const [ready, setReady] = useState(false)
+  const [acceptedAt, setAcceptedAt] = useState<string | null>(null)
 
   useEffect(() => {
-    async function init() {
+    async function load() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/login'); return }
+
+      const { data } = await supabase
+        .from('users')
+        .select('contract_accepted_at, contract_version')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      setAcceptedAt(data?.contract_accepted_at ?? null)
+      setReady(true)
     }
-    init()
+    load()
   }, [router])
 
-  const allChecked = sections.every(s => checked[s.id])
-
-  function toggle(id: string) {
-    setChecked(prev => ({ ...prev, [id]: !prev[id] }))
+  if (!ready) {
+    return (
+      <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT }}>
+        <p style={{ fontSize: 14, color: '#8A7E72' }}>Loading…</p>
+      </main>
+    )
   }
-
-  async function acceptContract() {
-    setLoading(true)
-    setError('')
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { router.push('/login'); return }
-
-    const { error: updateError } = await supabase.from('users').update({
-      contract_accepted_at: new Date().toISOString(),
-      contract_version: '1.0',
-    }).eq('id', session.user.id)
-
-    if (updateError) {
-      setError(updateError.message)
-      setLoading(false)
-      return
-    }
-
-    router.push('/onboarding/pending')
-  }
-
-  const remaining = sections.filter(s => !checked[s.id]).length
 
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, padding: '40px 24px' }}>
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, padding: '40px 24px 60px' }}>
       <div style={{ width: '100%', maxWidth: 384, margin: '0 auto' }}>
 
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 16 }}>
-            <span style={{ fontSize: 28 }}>📋</span>
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT }}>Service agreement</h1>
-          <p style={{ color: '#8A7E72', marginTop: 4, fontSize: 14, fontFamily: FONT }}>Please read and confirm each section</p>
+        {/* Back button */}
+        <button
+          onClick={() => router.push('/client/home')}
+          style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#E8E2D9', border: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 24, padding: 0, flexShrink: 0 }}
+        >
+          <BackArrow />
+        </button>
+
+        {/* Title */}
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: 0 }}>Service agreement</h1>
+          <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT, margin: '4px 0 0' }}>
+            Tails to Trails — version 1.0
+          </p>
         </div>
 
+        {/* Contract sections (read-only) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
           {sections.map(section => (
             <div
               key={section.id}
               style={{
+                backgroundColor: 'white',
+                border: '1px solid #E8E2D9',
                 borderRadius: 12,
-                border: checked[section.id] ? '2px solid #26452B' : '1px solid #E8E2D9',
-                backgroundColor: checked[section.id] ? '#E8F0E5' : 'white',
                 padding: 16,
               }}
             >
               <h3 style={{ fontSize: 14, fontWeight: 600, color: '#3B2A1F', marginBottom: 8, fontFamily: FONT }}>{section.title}</h3>
-              <p style={{ fontSize: 12, color: '#3B2A1F', lineHeight: 1.6, marginBottom: 12, fontFamily: FONT }}>{section.body}</p>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={checked[section.id] ?? false}
-                  onChange={() => toggle(section.id)}
-                  style={{ width: 16, height: 16, accentColor: '#26452B', flexShrink: 0 }}
-                />
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#3B2A1F', fontFamily: FONT }}>
-                  I have read and agree to this section
-                </span>
-              </label>
+              <p style={{ fontSize: 12, color: '#3B2A1F', lineHeight: 1.6, margin: 0, fontFamily: FONT }}>{section.body}</p>
             </div>
           ))}
         </div>
 
-        {error && <p style={{ color: '#ef4444', fontSize: 14, marginBottom: 16 }}>{error}</p>}
-
-        <button
-          onClick={acceptContract}
-          disabled={!allChecked || loading}
-          style={{ width: '100%', backgroundColor: '#26452B', color: 'white', padding: '14px', borderRadius: 12, fontWeight: 600, fontSize: 15, border: 'none', cursor: allChecked && !loading ? 'pointer' : 'not-allowed', opacity: allChecked && !loading ? 1 : 0.5, fontFamily: FONT }}
-        >
-          {loading ? 'Submitting...' : allChecked ? 'Accept and continue →' : `${remaining} section${remaining !== 1 ? 's' : ''} remaining`}
-        </button>
-
-        <p style={{ fontSize: 12, color: '#8A7E72', textAlign: 'center', marginTop: 16, fontFamily: FONT }}>
-          Your profile will be reviewed by our team before your first booking.
-        </p>
+        {/* Acceptance confirmation */}
+        <div style={{ backgroundColor: '#E8F0E5', border: '1px solid #C8DBBE', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', backgroundColor: '#26452B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+            <svg width={10} height={10} viewBox="0 0 12 12" fill="none">
+              <polyline points="2,6 5,9 10,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#26452B', fontFamily: FONT, margin: 0 }}>Agreement accepted</p>
+            {acceptedAt ? (
+              <p style={{ fontSize: 12, color: '#4D6B46', fontFamily: FONT, margin: '2px 0 0' }}>
+                You accepted this agreement on {fmtDate(acceptedAt)}
+              </p>
+            ) : (
+              <p style={{ fontSize: 12, color: '#8A7E72', fontFamily: FONT, margin: '2px 0 0' }}>
+                Acceptance date unavailable
+              </p>
+            )}
+          </div>
+        </div>
 
       </div>
     </main>

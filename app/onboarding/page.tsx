@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { supabase } from '@/lib/supabase'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
 
@@ -37,11 +38,48 @@ export default function Onboarding() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  // Profile data is stored in localStorage here and written to Supabase
-  // after phone auth completes at the end of the onboarding flow.
+  useEffect(() => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
 
-  function saveProfile() {
-    localStorage.setItem('onboarding_profile', JSON.stringify({ name, language, address }))
+      // Pre-populate if partial data exists
+      const { data: profile } = await supabase
+        .from('users')
+        .select('name, language, address')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      if (profile) {
+        if (profile.name) setName(profile.name)
+        if (profile.language) setLanguage(profile.language as 'en' | 'mn')
+        if (profile.address) setAddress(profile.address)
+      }
+    }
+    init()
+  }, [router])
+
+  async function saveProfile() {
+    setLoading(true)
+    setError('')
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push('/login'); return }
+
+    const { error: upsertError } = await supabase.from('users').upsert({
+      id: session.user.id,
+      phone: session.user.phone,
+      name,
+      language,
+      address,
+      role: 'client',
+    })
+
+    if (upsertError) {
+      setError(upsertError.message)
+      setLoading(false)
+      return
+    }
+
     router.push('/onboarding/dog')
   }
 

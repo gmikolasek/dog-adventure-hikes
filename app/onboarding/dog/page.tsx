@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { uploadDogProfilePhoto } from '@/lib/photos'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
 
@@ -37,6 +39,9 @@ export default function DogProfile() {
   const photoInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
+  // Track existing pending dog so we can update instead of insert
+  const [existingDogId, setExistingDogId] = useState<string | null>(null)
+
   // Dog profile fields
   const [name, setName] = useState('')
   const [breed, setBreed] = useState('')
@@ -53,6 +58,52 @@ export default function DogProfile() {
   const [airtag, setAirtag] = useState<boolean | null>(null)
   const [ecollar, setEcollar] = useState<boolean | null>(null)
   const [trainingInterest, setTrainingInterest] = useState(false)
+
+  useEffect(() => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
+
+      // Pre-populate if a pending dog already exists
+      const { data: dogs } = await supabase
+        .from('dogs')
+        .select('*')
+        .eq('owner_id', session.user.id)
+        .eq('approval_status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(1)
+
+      const dog = dogs?.[0]
+      if (dog) {
+        setExistingDogId(dog.id)
+        if (dog.name) setName(dog.name)
+        if (dog.breed) setBreed(dog.breed)
+        if (dog.age_years != null) setAgeYears(String(dog.age_years))
+        if (dog.weight_kg != null) setWeightKg(String(dog.weight_kg))
+        if (dog.sex) setSex(dog.sex)
+        if (dog.neutered !== null) setNeutered(dog.neutered)
+        if (dog.disposition_notes) setDispositionNotes(dog.disposition_notes)
+        if (dog.other_notes) setOtherNotes(dog.other_notes)
+        if (dog.recall_score) setRecallScore(dog.recall_score)
+        if (dog.car_score) setCarScore(dog.car_score)
+        if (dog.social_score) setSocialScore(dog.social_score)
+        if (dog.known_aggression !== null) setKnownAggression(dog.known_aggression)
+        if (dog.airtag_confirmed !== null) setAirtag(dog.airtag_confirmed)
+        if (dog.ecollar !== null) setEcollar(dog.ecollar)
+        // Show existing photo as preview (no re-upload needed unless user picks a new one)
+        if (dog.photo_url) setPhotoPreview(dog.photo_url)
+      }
+
+      // Pre-populate training_interest from users table
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('training_interest')
+        .eq('id', session.user.id)
+        .maybeSingle()
+      if (userRow?.training_interest) setTrainingInterest(true)
+    }
+    init()
+  }, [router])
 
   function ScoreSelector({ label, value, onChange }: {
     label: string
@@ -135,13 +186,14 @@ export default function DogProfile() {
     reader.readAsDataURL(file)
   }
 
-  // Dog data is stored in localStorage here and written to Supabase
-  // after phone auth completes at the end of the onboarding flow.
-  // photoPreview (base64 data URL) is stored so the photo can be
-  // uploaded after a session is available.
+  async function saveDog() {
+    setLoading(true)
+    setError('')
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push('/login'); return }
 
-  function saveDog() {
-    localStorage.setItem('onboarding_dog', JSON.stringify({
+    const dogData = {
+      owner_id: session.user.id,
       name,
       breed,
       age_years: ageYears ? parseInt(ageYears) : null,
@@ -156,9 +208,32 @@ export default function DogProfile() {
       known_aggression: knownAggression ?? false,
       airtag_confirmed: airtag ?? false,
       ecollar: ecollar ?? false,
-      training_interest: trainingInterest,
-      photo_data_url: photoPreview,
-    }))
+      approval_status: 'pending',
+    }
+
+    let dogId = existingDogId
+
+    if (existingDogId) {
+      const { error: updateError } = await supabase.from('dogs').update(dogData).eq('id', existingDogId)
+      if (updateError) { setError(updateError.message); setLoading(false); return }
+    } else {
+      const { data: inserted, error: insertError } = await supabase.from('dogs').insert(dogData).select('id')
+      if (insertError) { setError(insertError.message); setLoading(false); return }
+      dogId = inserted?.[0]?.id ?? null
+    }
+
+    if (trainingInterest) {
+      await supabase.from('users').update({ training_interest: true }).eq('id', session.user.id)
+    }
+
+    // Only upload photo if user selected a new file (not just showing existing URL)
+    if (photoFile && dogId) {
+      const photoUrl = await uploadDogProfilePhoto(photoFile, session.user.id, dogId)
+      if (photoUrl) {
+        await supabase.from('dogs').update({ photo_url: photoUrl }).eq('id', dogId)
+      }
+    }
+
     router.push('/onboarding/contract')
   }
 

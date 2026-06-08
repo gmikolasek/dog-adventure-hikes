@@ -5,18 +5,8 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { getUserState, landingRoute } from '@/lib/userState'
-import { uploadDogProfilePhoto } from '@/lib/photos'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
-
-function dataUrlToFile(dataUrl: string, filename: string): File {
-  const [header, base64] = dataUrl.split(',')
-  const mime = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new File([bytes], filename, { type: mime })
-}
 
 const inputBase: React.CSSProperties = {
   borderRadius: 10,
@@ -57,7 +47,7 @@ export default function Home() {
   const router = useRouter()
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
-  const [step, setStep] = useState<'phone' | 'otp' | 'done'>('phone')
+  const [step, setStep] = useState<'phone' | 'otp'>('phone')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [otpFocused, setOtpFocused] = useState(false)
@@ -66,10 +56,7 @@ export default function Home() {
     setLoading(true)
     setError('')
     const formatted = phone.startsWith('+') ? phone : `+976${phone}`
-    console.log('Attempting OTP send to:', formatted)
-    const { data, error } = await supabase.auth.signInWithOtp({ phone: formatted })
-    console.log('Response data:', data)
-    console.log('Response error:', error)
+    const { error } = await supabase.auth.signInWithOtp({ phone: formatted })
     if (error) {
       setError(error.message)
     } else {
@@ -99,69 +86,8 @@ export default function Home() {
       return
     }
 
-    // New user completing onboarding: write localStorage data to Supabase.
-    const pendingProfile = localStorage.getItem('onboarding_profile')
-    if (pendingProfile) {
-      const profile = JSON.parse(pendingProfile)
-      const dog = JSON.parse(localStorage.getItem('onboarding_dog') ?? 'null')
-
-      await supabase.from('users').upsert({
-        id: userId,
-        phone: data.session!.user.phone,
-        name: profile.name,
-        language: profile.language,
-        address: profile.address,
-        role: 'client',
-      })
-
-      if (dog) {
-        const { data: inserted } = await supabase.from('dogs').insert({
-          owner_id: userId,
-          name: dog.name,
-          breed: dog.breed,
-          age_years: dog.age_years,
-          weight_kg: dog.weight_kg,
-          sex: dog.sex,
-          neutered: dog.neutered,
-          disposition_notes: dog.disposition_notes,
-          other_notes: dog.other_notes,
-          recall_score: dog.recall_score,
-          car_score: dog.car_score,
-          social_score: dog.social_score,
-          known_aggression: dog.known_aggression,
-          airtag_confirmed: dog.airtag_confirmed,
-          ecollar: dog.ecollar,
-          approval_status: 'pending',
-        }).select('id')
-
-        if (dog.training_interest) {
-          await supabase.from('users')
-            .update({ training_interest: true })
-            .eq('id', userId)
-        }
-
-        const dogId = inserted?.[0]?.id
-        if (dog.photo_data_url && dogId) {
-          const photoFile = dataUrlToFile(dog.photo_data_url, 'dog_photo.jpg')
-          const photoUrl = await uploadDogProfilePhoto(photoFile, userId, dogId)
-          if (photoUrl) {
-            await supabase.from('dogs').update({ photo_url: photoUrl }).eq('id', dogId)
-          }
-        }
-      }
-
-      localStorage.removeItem('onboarding_profile')
-      localStorage.removeItem('onboarding_dog')
-      localStorage.removeItem('onboarding_contract')
-
-      router.push('/onboarding/pending')
-      return
-    }
-
-    // Returning user: route to the right place based on their state.
     const state = await getUserState(userId)
     router.push(landingRoute(state))
-    setLoading(false)
   }
 
   return (
@@ -234,16 +160,6 @@ export default function Home() {
             >
               ← Change number
             </button>
-          </div>
-        )}
-
-        {step === 'done' && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 16 }}>
-              <span style={{ fontSize: 28, color: '#26452B', fontWeight: 700 }}>✓</span>
-            </div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#3B2A1F', marginBottom: 8, fontFamily: FONT }}>You&apos;re in</h2>
-            <p style={{ color: '#8A7E72', fontSize: 14, fontFamily: FONT }}>Setting up your profile...</p>
           </div>
         )}
 

@@ -120,12 +120,13 @@ style={{
 
 ## Auth Flow
 
-**Onboarding (new users):**
-1. `/onboarding` — collect name, language, address → `localStorage('onboarding_profile')`
-2. `/onboarding/dog` — collect dog info + photo → `localStorage('onboarding_dog')` (photo stored as base64 data URL)
-3. `/onboarding/contract` — accept service agreement → `localStorage('onboarding_contract')`
-4. `/login` — phone OTP auth
-5. After OTP verified: `verifyOtp()` checks `localStorage('onboarding_profile')`. If present, writes all data to Supabase (`users` upsert + `dogs` insert + photo upload), clears localStorage, redirects to `/onboarding/pending`
+**Onboarding (new users) — auth-first:**
+1. `/login` — phone OTP auth
+2. After OTP verified: `getUserState()` → `landingRoute()`. New users with no profile → `/onboarding`
+3. `/onboarding` — collect name, language, address → upsert into `users` table directly
+4. `/onboarding/dog` — collect dog info + photo → insert/upsert into `dogs` table; photo uploaded via `uploadDogProfilePhoto()`
+5. `/onboarding/contract` — accept service agreement → update `users SET contract_accepted_at, contract_version`
+6. `/onboarding/pending` — polls until a dog is approved → redirects to `/client/home`
 
 **Returning users:**
 - `/login` OTP → `getUserState()` → `landingRoute()` → appropriate page
@@ -133,9 +134,10 @@ style={{
 **`landingRoute()` logic** (`lib/userState.ts`):
 - No profile → `/onboarding`
 - `role === 'staff'` → `/staff`
+- Profile exists but no dog → `/onboarding/dog`
+- Dog exists but `contract_accepted_at` is null → `/onboarding/contract`
 - Any dog with `approval_status = 'approved' | 'approved_with_conditions'` → `/client`
 - Dogs exist but none approved → `/onboarding/pending`
-- Profile but no dogs → `/onboarding/dog`
 
 **`/onboarding/pending`** polls Supabase every 10s, queries `dogs` table directly for approved status. On approval detected: stops polling, sets `redirecting = true`, pushes to `/client`.
 
@@ -157,7 +159,8 @@ style={{
 | `language` | text | `'mn'` or `'en'` |
 | `role` | text | `'client'` or `'staff'` |
 | `zone_id` | uuid FK → zones | Assigned hiking zone |
-| `approved_at` | timestamptz | Set when zone is assigned (legacy — approval status now driven by `dogs.approval_status`) |
+| `contract_accepted_at` | timestamptz | Set when user accepts the service agreement during onboarding |
+| `contract_version` | text | Version string, e.g. `'1.0'` |
 | `training_interest` | boolean | |
 | `created_at` | timestamptz | |
 
@@ -251,6 +254,10 @@ style={{
 ### Migrations applied
 - `pickup_order integer` column added to `bookings` — run manually in Supabase. Hike detail page drag-to-reorder is working correctly.
 
+### Migrations required (not yet applied)
+- `ALTER TABLE users ADD COLUMN contract_accepted_at timestamptz;`
+- `ALTER TABLE users ADD COLUMN contract_version text;`
+
 ---
 
 ## File Structure
@@ -260,10 +267,11 @@ style={{
 ```
 app/
 ├── page.tsx                        Landing page (hero image, logo, CTA buttons)
-├── login/page.tsx                  Phone OTP auth + post-auth localStorage flush
+├── login/page.tsx                  Phone OTP auth → getUserState() → landingRoute()
 ├── client/
 │   ├── page.tsx                    Redirect shim → /client/home
 │   ├── home/page.tsx               Client dashboard
+│   ├── contract/page.tsx           View accepted service agreement
 │   ├── book/page.tsx               Booking flow
 │   ├── book/payment/page.tsx       Payment step
 │   ├── bookings/[id]/page.tsx      Booking detail
@@ -341,6 +349,7 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 | Client payment step (`/client/book/payment`) | ✅ Brand tokens applied |
 | Client booking history (`/client/history`) | ✅ Brand tokens applied |
 | Client dog profile (`/client/profile`) | ✅ Brand tokens applied |
+| Client contract view (`/client/contract`) | ✅ Read-only agreement + acceptance date |
 
 ### Not yet polished
 - `/client/book/payment` confirmation screen (post-payment)
@@ -351,17 +360,15 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 
 ### Active (unresolved)
 
-1. **`landingRoute()` uses stale approval check** — `lib/userState.ts` still checks `users.approved_at && users.zone_id` instead of `dogs.approval_status`. Approved users without a zone assignment may get routed to `/onboarding/pending` instead of `/client`. The fix was written but reverted when it caused a 404 on `/client` (now resolved — `app/client/page.tsx` exists as a redirect shim to `/client/home`). Safe to re-apply, but carefully: only change the approval detection logic, do not change the redirect target away from `/client`.
+1. **RLS blocks "Add dog" on run page** — `handleAddDog()` in `/staff/hikes/[date]/run/page.tsx` inserts into `bookings` with `staff_added: true`. This fails with a row-level security error because the RLS policy on `bookings` only allows inserts by the row's `owner_id`. Fix: add a Supabase RLS policy allowing staff role to insert into `bookings`, or use a SECURITY DEFINER RPC function for the insert.
 
-2. **RLS blocks "Add dog" on run page** — `handleAddDog()` in `/staff/hikes/[date]/run/page.tsx` inserts into `bookings` with `staff_added: true`. This fails with a row-level security error because the RLS policy on `bookings` only allows inserts by the row's `owner_id`. Fix: add a Supabase RLS policy allowing staff role to insert into `bookings`, or use a SECURITY DEFINER RPC function for the insert.
+2. **Payment confirmation screen** — Post-payment success screen after booking completes has no brand token styling.
 
-3. **Payment confirmation screen** — Post-payment success screen after booking completes has no brand token styling.
+3. **Notification sending deferred** — "ETA for pickup / ETA for drop-off" buttons on both the pre-hike and run pages are placeholders (`cursor: not-allowed`, "Coming soon" note). Implementation deferred.
 
-4. **Onboarding localStorage-deferred flow needs re-applying** — The localStorage-deferred auth flow (onboarding stores data client-side, flushed to Supabase after OTP) was implemented but the commits were hard-reset to `37b3346`. Needs clean re-implementation. `app/client/page.tsx` now exists so the 404 that triggered the revert won't recur.
+4. **`proxy.ts` auth not enforced** — Both branches of the proxy return `NextResponse.next()`. Auth is enforced client-side only. Acceptable for now; harden before public launch.
 
-5. **Notification sending deferred** — "ETA for pickup / ETA for drop-off" buttons on both the pre-hike and run pages are placeholders (`cursor: not-allowed`, "Coming soon" note). Implementation deferred.
-
-6. **`proxy.ts` auth not enforced** — Both branches of the proxy return `NextResponse.next()`. Auth is enforced client-side only. Acceptable for now; harden before public launch.
+5. **`contract_accepted_at` / `contract_version` columns not yet migrated** — Must run `ALTER TABLE users ADD COLUMN contract_accepted_at timestamptz; ALTER TABLE users ADD COLUMN contract_version text;` in Supabase before onboarding contract step will work.
 
 ### Known working
 - Drag reorder on both pre-hike (`/staff/hikes/[date]`) and run (`/staff/hikes/[date]/run`) pages saves `pickup_order` to Supabase correctly
@@ -370,6 +377,9 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 - `pickup_order` column exists in `bookings` table — migration applied manually
 
 ### Resolved
+- `landingRoute()` stale approval check — now queries `dogs.approval_status` instead of `users.approved_at && users.zone_id`; also checks `contract_accepted_at` before routing to client area
+- Onboarding localStorage-deferred flow — replaced with auth-first flow: OTP first, then each step writes directly to Supabase; no localStorage used anywhere in onboarding
+- `onboarding/pending` stale zone_id check — removed `&& state.profile?.zone_id` guard; any approved dog redirects immediately to `/client/home`
 - Exceptions page showing 0 — page was a placeholder with hardcoded empty array; now queries `bookings WHERE status IN ('no_show', 'cancelled')` joined with dogs/users/hike_days
 - `/client` route 404 — added `app/client/page.tsx` as redirect shim to `/client/home`
 - Invisible input text on mobile/Safari — `WebkitTextFillColor: '#171717'` applied to all inputs
@@ -385,6 +395,7 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 ## Recent Commits (newest first)
 
 ```
+(pending)  Rewrite onboarding: auth-first flow, direct DB writes, fix landingRoute()
 40d2af0  Fix exceptions page: implement real DB query + full UI polish
 fb5974f  Hike run page: drag-to-reorder pickup queue, remove action buttons from list
 a9bd812  Hike run page: full UI redesign + pickup_order sort + dog photos

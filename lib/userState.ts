@@ -17,8 +17,8 @@ export type Profile = {
   role: string | null
   language: string | null
   address: string | null
-  approved_at: string | null
   zone_id: string | null
+  contract_accepted_at: string | null
 }
 
 export type UserState = {
@@ -30,7 +30,7 @@ export type UserState = {
 export async function getUserState(userId: string): Promise<UserState> {
   const { data: profile } = await supabase
     .from('users')
-    .select('id, name, role, language, address, approved_at, zone_id')
+    .select('id, name, role, language, address, zone_id, contract_accepted_at')
     .eq('id', userId)
     .maybeSingle()
 
@@ -47,18 +47,24 @@ export async function getUserState(userId: string): Promise<UserState> {
 export function landingRoute(state: UserState): string {
   const { profile, dogs } = state
 
-  // No profile row yet → start onboarding.
+  // No profile row yet → start onboarding (step 1: name/language/address).
   if (!profile) return '/onboarding'
 
   // Staff always go to the staff dashboard.
   if (profile.role === 'staff') return '/staff'
 
-  // Fully set up: approved by staff AND assigned a zone.
-  if (profile.approved_at && profile.zone_id) return '/client/home'
+  // Profile exists but no dog submitted yet → dog step.
+  if (dogs.length === 0) return '/onboarding/dog'
 
-  // Has submitted a dog but isn't approved+zoned yet → waiting screen.
-  if (dogs.length > 0) return '/onboarding/pending'
+  // Dog submitted but contract not accepted → contract step.
+  if (!profile.contract_accepted_at) return '/onboarding/contract'
 
-  // Profile exists but no dog yet → resume onboarding at the dog step.
-  return '/onboarding/dog'
+  // Contract accepted; check dog approval status.
+  const hasApprovedDog = dogs.some(
+    d => d.approval_status === 'approved' || d.approval_status === 'approved_with_conditions'
+  )
+  if (hasApprovedDog) return '/client'
+
+  // Dogs exist, contract signed, but no dog approved yet → waiting screen.
+  return '/onboarding/pending'
 }
