@@ -244,109 +244,143 @@ export default function StaffCalendar() {
 
         {/* Editor */}
         {selected && (
-          <div className="rounded-2xl border border-gray-200 p-4" style={{ backgroundColor: 'white' }}>
-            <p className="text-sm font-semibold text-gray-900 mb-3">{formatFull(selected)}</p>
+          <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 20 }}>
+            <p style={{ fontSize: 18, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 16px' }}>{formatFull(selected)}</p>
 
-            <div className="flex gap-2 mb-4">
-              {(['open', 'blocked'] as const).map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatus(s)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
-                    status === s
-                      ? s === 'open' ? 'bg-green-600 text-white' : 'bg-gray-700 text-white'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+            {/* Open / Blocked toggle */}
+            <div style={{ display: 'flex', marginBottom: 20 }}>
+              {(['open', 'blocked'] as const).map(s => {
+                const isSelected = status === s
+                const radius = s === 'open' ? '10px 0 0 10px' : '0 10px 10px 0'
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatus(s)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: radius,
+                      border: 'none',
+                      backgroundColor: isSelected ? '#26452B' : '#EEE9E0',
+                      color: isSelected ? 'white' : '#8A7E72',
+                      fontSize: 14,
+                      fontWeight: 500,
+                      fontFamily: FONT,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
             </div>
 
             {status === 'open' && (
-              <div className="space-y-4 mb-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
+                {/* Zones */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Zones running this day</label>
+                  <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, marginBottom: 10 }}>
+                    Zones running this day
+                  </label>
                   {zones.length === 0 ? (
-                    <p className="text-xs text-gray-400">No zones configured.</p>
+                    <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT }}>No zones configured.</p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {zones.map(z => (
-                        <button
-                          key={z.id}
-                          type="button"
-                          onClick={() => toggleZone(z.id)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                            zoneSel.includes(z.id)
-                              ? 'bg-green-600 border-green-600 text-white'
-                              : 'border-gray-300 text-gray-600 hover:border-green-400'
-                          }`}
-                        >
-                          {z.name}
-                        </button>
-                      ))}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {zones.map(z => {
+                        const sel = zoneSel.includes(z.id)
+                        return (
+                          <button
+                            key={z.id}
+                            type="button"
+                            onClick={() => toggleZone(z.id)}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: 20,
+                              border: sel ? 'none' : '1px solid #E8E2D9',
+                              backgroundColor: sel ? '#26452B' : 'white',
+                              color: sel ? 'white' : '#3B2A1F',
+                              fontSize: 13,
+                              fontWeight: 500,
+                              fontFamily: FONT,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {z.name}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
 
+                {/* Destination */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Destination (optional)</label>
+                  <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, marginBottom: 6 }}>
+                    Destination (optional)
+                  </label>
                   <input
                     type="text" value={destination} onChange={e => setDestination(e.target.value)}
                     placeholder="e.g. Bogd Khan ridge"
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
+                    style={{ width: '100%', borderRadius: 10, border: '1px solid #E8E2D9', padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', fontFamily: FONT, boxSizing: 'border-box', outline: 'none' }}
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-gray-700">Capacity (dogs)</label>
+                {/* Capacity */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ fontSize: 14, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT }}>
+                    Capacity (dogs)
+                  </label>
                   <input
                     type="number" min={1} value={capacity}
                     onChange={e => setCapacity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-20 rounded-xl border border-gray-300 px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-500"
-                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
+                    style={{ width: 72, borderRadius: 10, border: '1px solid #E8E2D9', padding: '8px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', fontFamily: FONT, textAlign: 'right', outline: 'none' }}
                   />
                 </div>
 
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={allowOver} onChange={e => setAllowOver(e.target.checked)}
-                    className="h-4 w-4 text-green-600 rounded border-gray-300" />
-                  <span className="text-xs text-gray-700">Allow booking over capacity</span>
+                {/* Allow over capacity */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox" checked={allowOver} onChange={e => setAllowOver(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: '#26452B', flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: 14, color: '#3B2A1F', fontFamily: FONT }}>Allow booking over capacity</span>
                 </label>
 
+                {/* Note to clients */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Note to clients (optional)</label>
+                  <label style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, marginBottom: 6 }}>
+                    Note to clients (optional)
+                  </label>
                   <textarea
                     value={note} onChange={e => setNote(e.target.value)} rows={2}
                     placeholder="e.g. Bring extra water — long route"
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
+                    style={{ width: '100%', borderRadius: 10, border: '1px solid #E8E2D9', padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', fontFamily: FONT, resize: 'none', boxSizing: 'border-box', outline: 'none' }}
                   />
                 </div>
               </div>
             )}
 
-            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+            {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 12, fontFamily: FONT }}>{error}</p>}
 
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => setSelected(null)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-600"
+                style={{ flex: 1, padding: '12px 24px', borderRadius: 12, border: '1px solid #E8E2D9', backgroundColor: 'white', color: '#3B2A1F', fontSize: 14, fontWeight: 500, fontFamily: FONT, cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 onClick={save}
                 disabled={saving || (status === 'open' && zoneSel.length === 0)}
-                className="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+                style={{ flex: 1, padding: '12px 24px', borderRadius: 12, border: 'none', backgroundColor: '#26452B', color: 'white', fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: saving || (status === 'open' && zoneSel.length === 0) ? 'not-allowed' : 'pointer', opacity: saving || (status === 'open' && zoneSel.length === 0) ? 0.5 : 1 }}
               >
                 {saving ? 'Saving…' : status === 'open' ? 'Open day' : 'Block day'}
               </button>
             </div>
             {status === 'open' && zoneSel.length === 0 && (
-              <p className="text-[11px] text-gray-400 mt-2">Select at least one zone to open the day.</p>
+              <p style={{ fontSize: 12, color: '#8A7E72', fontFamily: FONT, marginTop: 8 }}>Select at least one zone to open the day.</p>
             )}
           </div>
         )}
