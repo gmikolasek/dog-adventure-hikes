@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import { formatFull } from '@/lib/booking'
 import { uploadHikePhoto } from '@/lib/photos'
 
@@ -43,6 +44,16 @@ function PawDark({ size = 20 }: { size?: number }) {
       <circle cx="6" cy="5.5" r="1.8" /><circle cx="11" cy="4" r="1.8" />
       <circle cx="16" cy="4" r="1.8" /><circle cx="20.5" cy="7" r="1.6" />
       <ellipse cx="12.5" cy="15.5" rx="6" ry="5" />
+    </svg>
+  )
+}
+
+function DragHandleIcon({ color = '#C0B8AE' }: { color?: string }) {
+  return (
+    <svg width={20} height={20} viewBox="0 0 20 20" fill={color}>
+      <rect x="3" y="4"  width="14" height="2" rx="1"/>
+      <rect x="3" y="9"  width="14" height="2" rx="1"/>
+      <rect x="3" y="14" width="14" height="2" rx="1"/>
     </svg>
   )
 }
@@ -136,6 +147,7 @@ export default function RunPage() {
   const [addDogPickup, setAddDogPickup] = useState<'curbside' | 'home'>('home')
   const [addDogBusy, setAddDogBusy] = useState(false)
   const [addDogError, setAddDogError] = useState('')
+  const [savingOrder, setSavingOrder] = useState(false)
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -305,6 +317,21 @@ export default function RunPage() {
     setBusy(null)
   }
 
+  async function onPickupDragEnd(result: DropResult) {
+    if (!result.destination || result.destination.index === result.source.index) return
+    const pending = bookings.filter(b => !b.pickedUpAt && b.status !== 'no_show')
+    const nonPending = bookings.filter(b => b.pickedUpAt || b.status === 'no_show')
+    const items = Array.from(pending)
+    const [moved] = items.splice(result.source.index, 1)
+    items.splice(result.destination.index, 0, moved)
+    setBookings([...items, ...nonPending])
+    setSavingOrder(true)
+    await Promise.all(
+      items.map((b, i) => supabase.from('bookings').update({ pickup_order: i }).eq('id', b.id))
+    )
+    setSavingOrder(false)
+  }
+
   async function handleAddDogSearch(q: string) {
     setAddDogQuery(q)
     setAddDogSelected(null)
@@ -410,10 +437,11 @@ export default function RunPage() {
   const droppedOff = activeBookings.filter(b => b.droppedOffAt)
   const noShows = bookings.filter(b => b.status === 'no_show')
 
-  const pickupQueue = activeBookings
-  const dropoffQueue = [...activeBookings.filter(b => b.pickedUpAt)].reverse()
+  const pendingDogs = activeBookings.filter(b => !b.pickedUpAt)
+  const pickedUpDogs = activeBookings.filter(b => b.pickedUpAt)
+  const dropoffQueue = [...pickedUpDogs].reverse()
 
-  const nextPickup = pickupQueue.find(b => !b.pickedUpAt)
+  const nextPickup = pendingDogs[0] ?? null
   const nextDropoff = dropoffQueue.find(b => !b.droppedOffAt)
 
   const allDroppedOff = activeBookings.length > 0 && activeBookings.every(b => b.droppedOffAt)
@@ -625,61 +653,123 @@ export default function RunPage() {
       {mode === 'pickup' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 40px' }}>
 
-          {/* Next pickup hero card */}
-          {nextPickup && (
-            <div style={{ backgroundColor: '#26452B', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#E6C89A', letterSpacing: '0.1em', fontFamily: FONT, margin: '0 0 12px', textTransform: 'uppercase' }}>
-                Next Pickup
-              </p>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
-                {nextPickup.dogPhotoUrl ? (
-                  <img src={nextPickup.dogPhotoUrl} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
-                ) : (
-                  <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <PawLight size={28} />
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{nextPickup.dogName}</p>
-                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{nextPickup.ownerName}</p>
-                  {nextPickup.ownerAddress && (
-                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 4px' }}>{nextPickup.ownerAddress}</p>
-                  )}
-                  {nextPickup.zoneName && (
-                    <p style={{ fontSize: 12, color: '#E6C89A', fontFamily: FONT, margin: '0 0 6px' }}>{nextPickup.zoneName}</p>
-                  )}
-                  {nextPickup.pickupMethod && (
-                    <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
-                      {nextPickup.pickupMethod}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => confirmPickup(nextPickup.id)}
-                disabled={busy === nextPickup.id}
-                style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', marginBottom: 8, opacity: busy === nextPickup.id ? 0.5 : 1 }}
-              >
-                {busy === nextPickup.id ? 'Saving…' : 'Confirm pickup ✓'}
-              </button>
-              <button
-                onClick={() => setConfirmNoShow(nextPickup.id)}
-                style={{ width: '100%', backgroundColor: 'transparent', border: 'none', color: '#FBE9E3', fontSize: 14, fontFamily: FONT, cursor: 'pointer', padding: '8px', textAlign: 'center' }}
-              >
-                Mark no-show
-              </button>
-            </div>
+          {/* Reorder hint */}
+          {pendingDogs.length > 1 && (
+            <p style={{ fontSize: 12, color: '#8A7E72', fontStyle: 'italic', fontFamily: FONT, textAlign: 'right', marginBottom: 8 }}>
+              {savingOrder ? 'Saving…' : 'Hold to reorder'}
+            </p>
           )}
 
-          {/* Remaining dogs */}
-          {pickupQueue.filter(b => b.id !== nextPickup?.id).map(b => (
-            <div
-              key={b.id}
-              style={{
-                backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginBottom: 8,
-                opacity: b.status === 'no_show' ? 0.55 : 1,
-              }}
-            >
+          {/* Draggable pending dogs — index 0 renders as hero card */}
+          <DragDropContext onDragEnd={onPickupDragEnd}>
+            <Droppable droppableId="pickup-queue">
+              {(provided) => (
+                <div ref={provided.innerRef} {...provided.droppableProps}>
+                  {pendingDogs.map((b, i) => (
+                    <Draggable key={b.id} draggableId={b.id} index={i}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          style={{
+                            ...provided.draggableProps.style,
+                            marginBottom: 8,
+                            boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.15)' : 'none',
+                          }}
+                        >
+                          {i === 0 ? (
+                            /* Hero card */
+                            <div style={{ backgroundColor: '#26452B', borderRadius: 16, padding: 16 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                <p style={{ fontSize: 11, fontWeight: 700, color: '#E6C89A', letterSpacing: '0.1em', fontFamily: FONT, margin: 0, textTransform: 'uppercase' }}>
+                                  Next Pickup
+                                </p>
+                                <div {...(provided.dragHandleProps ?? {})} style={{ cursor: 'grab', lineHeight: 0 }}>
+                                  <DragHandleIcon color="rgba(255,255,255,0.4)" />
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+                                {b.dogPhotoUrl ? (
+                                  <img src={b.dogPhotoUrl} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
+                                ) : (
+                                  <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <PawLight size={28} />
+                                  </div>
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontSize: 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerName}</p>
+                                  {b.ownerAddress && (
+                                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 4px' }}>{b.ownerAddress}</p>
+                                  )}
+                                  {b.zoneName && (
+                                    <p style={{ fontSize: 12, color: '#E6C89A', fontFamily: FONT, margin: '0 0 6px' }}>{b.zoneName}</p>
+                                  )}
+                                  {b.pickupMethod && (
+                                    <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                      {b.pickupMethod}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => confirmPickup(b.id)}
+                                disabled={busy === b.id}
+                                style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', marginBottom: 8, opacity: busy === b.id ? 0.5 : 1 }}
+                              >
+                                {busy === b.id ? 'Saving…' : 'Confirm pickup ✓'}
+                              </button>
+                              <button
+                                onClick={() => setConfirmNoShow(b.id)}
+                                style={{ width: '100%', backgroundColor: 'transparent', border: 'none', color: '#FBE9E3', fontSize: 14, fontFamily: FONT, cursor: 'pointer', padding: '8px', textAlign: 'center' }}
+                              >
+                                Mark no-show
+                              </button>
+                            </div>
+                          ) : (
+                            /* Remaining card — drag handle only, no action buttons */
+                            <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                {b.dogPhotoUrl ? (
+                                  <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
+                                ) : (
+                                  <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <PawDark size={22} />
+                                  </div>
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                  <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: '0 0 4px' }}>
+                                    {b.ownerName}{b.zoneName ? ` · ${b.zoneName}` : ''}
+                                  </p>
+                                  {b.pickupMethod && (
+                                    <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                      {b.pickupMethod}
+                                    </span>
+                                  )}
+                                </div>
+                                <div
+                                  {...(provided.dragHandleProps ?? {})}
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, flexShrink: 0, cursor: 'grab' }}
+                                >
+                                  <DragHandleIcon />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+
+          {/* Already picked up (static) */}
+          {pickedUpDogs.map(b => (
+            <div key={b.id} style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {b.dogPhotoUrl ? (
                   <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
@@ -690,54 +780,43 @@ export default function RunPage() {
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
-                  <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: '0 0 4px' }}>
-                    {b.ownerName}{b.zoneName ? ` · ${b.zoneName}` : ''}
-                  </p>
-                  {b.pickupMethod && (
-                    <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
-                      {b.pickupMethod}
-                    </span>
-                  )}
+                  <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>{b.ownerName}</p>
                 </div>
-                <div style={{ flexShrink: 0 }}>
-                  {b.pickedUpAt && (
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: '#26452B', fontFamily: FONT, margin: '0 0 2px' }}>{fmtTime(b.pickedUpAt)}</p>
-                      <button
-                        onClick={() => setConfirmUndo({ bookingId: b.id, type: 'pickup' })}
-                        style={{ fontSize: 11, color: '#8A7E72', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                      >
-                        Undo
-                      </button>
-                    </div>
-                  )}
-                  {b.status === 'no_show' && (
-                    <p style={{ fontSize: 12, color: '#C1562D', fontFamily: FONT }}>No-show</p>
-                  )}
-                  {!b.pickedUpAt && b.status !== 'no_show' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <button
-                        onClick={() => confirmPickup(b.id)}
-                        disabled={!!busy}
-                        style={{ backgroundColor: '#E8F0E5', color: '#26452B', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
-                      >
-                        {busy === b.id ? '…' : 'Pickup'}
-                      </button>
-                      <button
-                        onClick={() => setConfirmNoShow(b.id)}
-                        style={{ backgroundColor: '#FBE9E3', color: '#C1562D', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer' }}
-                      >
-                        No-show
-                      </button>
-                    </div>
-                  )}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#26452B', fontFamily: FONT, margin: '0 0 2px' }}>{fmtTime(b.pickedUpAt)}</p>
+                  <button
+                    onClick={() => setConfirmUndo({ bookingId: b.id, type: 'pickup' })}
+                    style={{ fontSize: 11, color: '#8A7E72', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                  >
+                    Undo
+                  </button>
                 </div>
               </div>
             </div>
           ))}
 
+          {/* No-shows (static) */}
+          {noShows.map(b => (
+            <div key={b.id} style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginBottom: 8, opacity: 0.55 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {b.dogPhotoUrl ? (
+                  <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #E8E2D9', flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #E8E2D9', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <PawDark size={22} />
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                  <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>{b.ownerName}</p>
+                </div>
+                <p style={{ fontSize: 12, color: '#C1562D', fontFamily: FONT, flexShrink: 0 }}>No-show</p>
+              </div>
+            </div>
+          ))}
+
           {/* All picked up */}
-          {!nextPickup && noShows.length === 0 && (
+          {pendingDogs.length === 0 && noShows.length === 0 && (
             <div style={{ textAlign: 'center', padding: '24px 0' }}>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#26452B', fontFamily: FONT, margin: '0 0 4px' }}>All dogs picked up!</p>
               <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>Switching to hike mode…</p>
