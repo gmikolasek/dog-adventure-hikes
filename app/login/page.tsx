@@ -81,21 +81,15 @@ export default function Home() {
     }
 
     const userId = data.session?.user.id
-    console.log('[login] verifyOtp success — userId:', userId)
     if (!userId) {
-      console.log('[login] no userId, pushing /onboarding')
       router.push('/onboarding')
       return
     }
 
-    console.log('[login] calling getUserState...')
     const state = await getUserState(userId)
     console.log('[login] getUserState result:', JSON.stringify(state, null, 2))
-
     const route = landingRoute(state)
     console.log('[login] landingRoute returned:', route)
-
-    console.log('[login] calling router.push with:', route)
     router.push(route)
   }
 
