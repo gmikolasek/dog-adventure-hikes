@@ -509,7 +509,7 @@ function DogCard({
 
         {/* Pickup / drop-off pills */}
         {(b.pickupMethod || b.dropoffMethod) && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
             {b.pickupMethod && (
               <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', fontSize: 12, borderRadius: 20, padding: '3px 10px', fontFamily: "'Noto Sans', system-ui, sans-serif" }}>
                 Pickup: {b.pickupMethod}
