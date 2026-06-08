@@ -162,6 +162,7 @@ export type HikeBooking = {
   id: string
   dogId: string
   dogName: string
+  dogPhotoUrl: string | null
   ownerName: string | null
   ownerPhone: string | null
   ownerAddress: string | null
@@ -170,6 +171,7 @@ export type HikeBooking = {
   status: string
   zoneId: string | null
   zoneName: string | null
+  pickupOrder: number | null
 }
 
 export type HikeDetail = {
@@ -187,6 +189,7 @@ type RawBookingRow = {
   pickup_method: string | null
   dropoff_method: string | null
   status: string
+  pickup_order: number | null
 }
 
 async function buildHikeDetails(
@@ -199,13 +202,13 @@ async function buildHikeDetails(
   const ownerIds = [...new Set(rawBookings.map(b => b.owner_id))]
 
   const [{ data: dogRows }, { data: ownerRows }, { data: zoneRows }] = await Promise.all([
-    supabase.from('dogs').select('id, name').in('id', dogIds),
+    supabase.from('dogs').select('id, name, photo_url').in('id', dogIds),
     supabase.from('users').select('id, name, phone, address, zone_id').in('id', ownerIds),
     supabase.from('zones').select('id, name'),
   ])
 
-  const dogById: Record<string, string> = {}
-  for (const d of (dogRows ?? [])) dogById[d.id] = d.name
+  const dogById: Record<string, { name: string; photo_url: string | null }> = {}
+  for (const d of (dogRows ?? [])) dogById[d.id] = { name: d.name, photo_url: d.photo_url }
 
   const ownerById: Record<string, { name: string | null; phone: string | null; address: string | null; zone_id: string | null }> = {}
   for (const u of (ownerRows ?? [])) ownerById[u.id] = { name: u.name, phone: u.phone, address: u.address, zone_id: u.zone_id }
@@ -225,7 +228,8 @@ async function buildHikeDetails(
         return {
           id: b.id,
           dogId: b.dog_id,
-          dogName: dogById[b.dog_id] ?? 'Unknown',
+          dogName: dogById[b.dog_id]?.name ?? 'Unknown',
+          dogPhotoUrl: dogById[b.dog_id]?.photo_url ?? null,
           ownerName: owner?.name ?? null,
           ownerPhone: owner?.phone ?? null,
           ownerAddress: owner?.address ?? null,
@@ -234,8 +238,14 @@ async function buildHikeDetails(
           status: b.status,
           zoneId,
           zoneName: zoneId ? (zoneNameById[zoneId] ?? null) : null,
+          pickupOrder: b.pickup_order ?? null,
         }
-      }).sort((a, b) => (a.zoneName ?? '').localeCompare(b.zoneName ?? ''))
+      }).sort((a, b) => {
+        if (a.pickupOrder !== null && b.pickupOrder !== null) return a.pickupOrder - b.pickupOrder
+        if (a.pickupOrder !== null) return -1
+        if (b.pickupOrder !== null) return 1
+        return (a.zoneName ?? '').localeCompare(b.zoneName ?? '')
+      })
       return { date: day.date, hikeDayId: day.id, destination: day.destination_override, bookings }
     })
 }
@@ -256,7 +266,7 @@ export async function getUpcomingHikes(limit = 2): Promise<HikeDetail[]> {
 
   const { data: bRows } = await supabase
     .from('bookings')
-    .select('id, dog_id, owner_id, hike_day_id, pickup_method, dropoff_method, status')
+    .select('id, dog_id, owner_id, hike_day_id, pickup_method, dropoff_method, status, pickup_order')
     .eq('status', 'confirmed')
     .in('hike_day_id', days.map(d => d.id))
 
@@ -276,7 +286,7 @@ export async function getHikeForDate(date: string): Promise<HikeDetail | null> {
 
   const { data: bRows } = await supabase
     .from('bookings')
-    .select('id, dog_id, owner_id, hike_day_id, pickup_method, dropoff_method, status')
+    .select('id, dog_id, owner_id, hike_day_id, pickup_method, dropoff_method, status, pickup_order')
     .eq('hike_day_id', dayRow.id)
     .eq('status', 'confirmed')
 

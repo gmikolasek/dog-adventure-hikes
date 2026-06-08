@@ -3,9 +3,64 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import { getHikeForDate, type HikeDetail, type HikeBooking } from '@/lib/adminData'
 import { formatFull, todayIso } from '@/lib/booking'
 import { uploadHikePhoto, getPhotoUrl, type HikePhoto } from '@/lib/photos'
+
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+// ── Icons ────────────────────────────────────────────────────────────────────
+
+function BackArrow() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#26452B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  )
+}
+
+function MountainIcon({ color = 'white' }: { color?: string }) {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 20 9 9 13 14 16 11 21 20"/>
+      <line x1="3" y1="20" x2="21" y2="20"/>
+    </svg>
+  )
+}
+
+function PawIcon({ size = 20, color = '#4D6B46' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <circle cx="6"  cy="5.5" r="1.8"/>
+      <circle cx="11" cy="4"   r="1.8"/>
+      <circle cx="16" cy="4"   r="1.8"/>
+      <circle cx="20.5" cy="7" r="1.6"/>
+      <ellipse cx="12.5" cy="15.5" rx="6" ry="5"/>
+    </svg>
+  )
+}
+
+function DragHandleIcon() {
+  return (
+    <svg width={20} height={20} viewBox="0 0 20 20" fill="#C0B8AE">
+      <rect x="3" y="4"  width="14" height="2" rx="1"/>
+      <rect x="3" y="9"  width="14" height="2" rx="1"/>
+      <rect x="3" y="14" width="14" height="2" rx="1"/>
+    </svg>
+  )
+}
+
+function BellIcon() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4D6B46" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  )
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HikeDetailPage() {
   const router = useRouter()
@@ -16,6 +71,8 @@ export default function HikeDetailPage() {
   const [hike, setHike] = useState<HikeDetail | null>(null)
   const [staffUserId, setStaffUserId] = useState('')
   const [dropoffStats, setDropoffStats] = useState<{ total: number; complete: number } | null>(null)
+  const [orderedBookings, setOrderedBookings] = useState<HikeBooking[]>([])
+  const [savingOrder, setSavingOrder] = useState(false)
 
   // Photo state
   const [photos, setPhotos] = useState<HikePhoto[]>([])
@@ -36,16 +93,13 @@ export default function HikeDetailPage() {
       if (!session) { router.push('/'); return }
 
       const { data: profile } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', session.user.id)
-        .maybeSingle()
+        .from('users').select('role').eq('id', session.user.id).maybeSingle()
       if (profile?.role !== 'staff') { router.push('/onboarding'); return }
-
       setStaffUserId(session.user.id)
 
       const hikeData = await getHikeForDate(date)
       setHike(hikeData)
+      if (hikeData) setOrderedBookings(hikeData.bookings)
 
       if (hikeData?.hikeDayId) {
         const { data: dropoffRows } = await supabase
@@ -81,6 +135,19 @@ export default function HikeDetailPage() {
     load()
   }, [router, date])
 
+  async function onDragEnd(result: DropResult) {
+    if (!result.destination || result.destination.index === result.source.index) return
+    const items = Array.from(orderedBookings)
+    const [moved] = items.splice(result.source.index, 1)
+    items.splice(result.destination.index, 0, moved)
+    setOrderedBookings(items)
+    setSavingOrder(true)
+    await Promise.all(
+      items.map((b, i) => supabase.from('bookings').update({ pickup_order: i }).eq('id', b.id))
+    )
+    setSavingOrder(false)
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null
     setUploadFile(file)
@@ -97,14 +164,12 @@ export default function HikeDetailPage() {
     if (!uploadFile || !hike) return
     setUploading(true)
     setUploadError('')
-
     const result = await uploadHikePhoto(uploadFile, hike.hikeDayId)
     if (!result) {
       setUploadError('Upload failed — please try again.')
       setUploading(false)
       return
     }
-
     const { data: newRow, error: dbErr } = await supabase
       .from('hike_photos')
       .insert({
@@ -117,13 +182,11 @@ export default function HikeDetailPage() {
       })
       .select('id')
       .single()
-
     if (dbErr || !newRow) {
       setUploadError('Photo uploaded but record save failed.')
       setUploading(false)
       return
     }
-
     setPhotos(prev => [...prev, {
       id: newRow.id,
       dogId: uploadDogId || null,
@@ -144,25 +207,14 @@ export default function HikeDetailPage() {
     if (!photo) return
     setDeleting(true)
     setDeleteError('')
-
-    // Storage delete (best-effort — orphan is acceptable if this fails)
-    const { error: storageErr } = await supabase.storage
-      .from('dog-photos')
-      .remove([photo.storagePath])
+    const { error: storageErr } = await supabase.storage.from('dog-photos').remove([photo.storagePath])
     if (storageErr) console.error('Storage delete failed', storageErr)
-
-    // DB row delete (authoritative — must succeed)
-    const { error: dbErr } = await supabase
-      .from('hike_photos')
-      .delete()
-      .eq('id', photoId)
-
+    const { error: dbErr } = await supabase.from('hike_photos').delete().eq('id', photoId)
     if (dbErr) {
       setDeleteError('Delete failed — ' + dbErr.message)
       setDeleting(false)
       return
     }
-
     setPhotos(prev => prev.filter(p => p.id !== photoId))
     setConfirmDeleteId(null)
     setDeleting(false)
@@ -170,8 +222,8 @@ export default function HikeDetailPage() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontSize: 14, color: '#8A7E72' }}>Loading…</p>
       </main>
     )
   }
@@ -186,91 +238,132 @@ export default function HikeDetailPage() {
   const isRunDay = date >= todayIso()
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
-      <div className="w-full max-w-sm mx-auto">
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, padding: '40px 24px 60px' }}>
+      <div style={{ width: '100%', maxWidth: 384, margin: '0 auto' }}>
 
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <button
-            onClick={() => router.push('/staff/hikes')}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 text-lg leading-none"
-          >
-            ←
-          </button>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900 leading-tight">Hike · {formattedDate}</h1>
-            {hike?.destination && (
-              <p className="text-xs text-gray-500 mt-0.5">{hike.destination}</p>
-            )}
-          </div>
+        {/* Back button */}
+        <button
+          onClick={() => router.push('/staff/hikes')}
+          style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#E8E2D9', border: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 20, padding: 0, flexShrink: 0 }}
+        >
+          <BackArrow />
+        </button>
+
+        {/* Title */}
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: 0 }}>
+            Hike · {formattedDate}
+          </h1>
+          {hike?.destination && (
+            <p style={{ color: '#8A7E72', fontSize: 14, marginTop: 4, fontFamily: FONT }}>{hike.destination}</p>
+          )}
         </div>
 
-        {/* Hike run status — only on/after hike day */}
+        {/* Start hike / in-progress / complete button */}
         {hike && hike.bookings.length > 0 && isRunDay && dropoffStats && (
           dropoffStats.complete === dropoffStats.total ? (
-            <div className="w-full bg-green-50 border border-green-200 py-4 rounded-2xl mb-6 flex items-center justify-center gap-2">
-              <span className="text-base font-semibold text-green-700">Hike complete ✓</span>
+            <div style={{ width: '100%', backgroundColor: '#E8F0E5', border: '1px solid #26452B', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#26452B', fontFamily: FONT }}>Hike complete ✓</span>
             </div>
           ) : dropoffStats.complete > 0 ? (
             <button
               onClick={() => router.push(`/staff/hikes/${date}/run`)}
-              className="w-full bg-blue-600 text-white py-4 rounded-2xl font-semibold text-base hover:bg-blue-700 transition-colors mb-6 flex items-center justify-center gap-2"
+              style={{ width: '100%', backgroundColor: '#2B5BA8', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: FONT }}
             >
-              <span>🥾</span>
+              <MountainIcon />
               <span>Hike in progress · {dropoffStats.complete} of {dropoffStats.total} dropped off</span>
             </button>
           ) : (
             <button
               onClick={() => router.push(`/staff/hikes/${date}/run`)}
-              className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-base hover:bg-green-700 transition-colors mb-6 flex items-center justify-center gap-2"
+              style={{ width: '100%', backgroundColor: '#26452B', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: FONT }}
             >
-              <span>🥾</span>
+              <MountainIcon />
               <span>Start hike</span>
             </button>
           )
         )}
 
         {!hike || hike.bookings.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 px-6 py-10 text-center">
-            <p className="text-sm text-gray-400">No confirmed bookings for this date.</p>
+          <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT }}>No confirmed bookings for this date.</p>
           </div>
         ) : (
           <>
             {/* Summary bar */}
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-gray-500">
-                {hike.bookings.length} dog{hike.bookings.length !== 1 ? 's' : ''} confirmed
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT }}>
+                {orderedBookings.length} dog{orderedBookings.length !== 1 ? 's' : ''} confirmed
               </p>
-              <p className="text-xs text-gray-400">Sorted by zone</p>
+              <p style={{ fontSize: 12, color: '#8A7E72', fontStyle: 'italic', fontFamily: FONT }}>
+                {savingOrder ? 'Saving…' : 'Hold to reorder'}
+              </p>
             </div>
 
-            {/* Map placeholder */}
-            <button
-              disabled
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 mb-4 text-sm text-gray-400 cursor-not-allowed"
-            >
-              <span>📍</span>
-              <span>View pickup map</span>
-              <span className="text-[11px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded ml-1">coming soon</span>
-            </button>
+            {/* Draggable booking list */}
+            <DragDropContext onDragEnd={onDragEnd}>
+              <Droppable droppableId="booking-list">
+                {(provided) => (
+                  <div ref={provided.innerRef} {...provided.droppableProps}>
+                    {orderedBookings.map((b, i) => (
+                      <Draggable key={b.id} draggableId={b.id} index={i}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            style={{
+                              ...provided.draggableProps.style,
+                              marginBottom: 8,
+                              boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.12)' : 'none',
+                            }}
+                          >
+                            <DogCard booking={b} dragHandleProps={provided.dragHandleProps} />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
 
-            {/* Booking list */}
-            <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {hike.bookings.map((b, i) => (
-                <BookingDetailRow key={b.id} booking={b} index={i + 1} />
-              ))}
+            {/* Notification placeholder */}
+            <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <BellIcon />
+                <span style={{ fontWeight: 700, color: '#3B2A1F', fontSize: 14, fontFamily: FONT }}>Notify clients</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <button
+                  onClick={() => alert('Coming soon')}
+                  style={{ flex: 1, backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 10, fontSize: 13, padding: '10px 8px', border: 'none', cursor: 'pointer', fontFamily: FONT, fontWeight: 500 }}
+                >
+                  ETA for pickup
+                </button>
+                <button
+                  onClick={() => alert('Coming soon')}
+                  style={{ flex: 1, backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 10, fontSize: 13, padding: '10px 8px', border: 'none', cursor: 'pointer', fontFamily: FONT, fontWeight: 500 }}
+                >
+                  ETA for drop-off
+                </button>
+              </div>
+              <p style={{ fontSize: 12, color: '#8A7E72', fontStyle: 'italic', fontFamily: FONT, margin: 0 }}>Notification sending coming soon</p>
             </div>
           </>
         )}
 
-        {/* ── Photos section ── */}
+        {/* Photos section */}
         {hike && (
-          <div className="mt-10">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gray-900">Photos</h2>
+          <div style={{ marginTop: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 3, height: 16, backgroundColor: '#26452B', borderRadius: 2, flexShrink: 0 }} />
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: 0 }}>Photos</h2>
+              </div>
               <button
                 onClick={() => { setShowUploadForm(!showUploadForm); setUploadError('') }}
-                className="text-sm text-green-600 hover:text-green-700 font-medium"
+                style={{ fontSize: 14, color: '#E08A3E', background: 'none', border: 'none', cursor: 'pointer', fontFamily: FONT, fontWeight: 500 }}
               >
                 {showUploadForm ? 'Cancel' : '+ Add photo'}
               </button>
@@ -278,29 +371,23 @@ export default function HikeDetailPage() {
 
             {/* Upload form */}
             {showUploadForm && (
-              <div className="rounded-2xl border border-gray-200 p-4 mb-4 space-y-4">
+              <div className="rounded-2xl border border-gray-200 p-4 mb-4 space-y-4" style={{ backgroundColor: 'white' }}>
                 <div>
                   <label className="block text-xs text-gray-500 mb-2">Photo</label>
                   <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
+                    type="file" accept="image/*" onChange={handleFileChange}
                     className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
                   />
                   {uploadPreview && (
-                    <div
-                      className="mt-3 w-full rounded-xl bg-cover bg-center"
-                      style={{ backgroundImage: `url(${uploadPreview})`, height: 160 }}
-                    />
+                    <div className="mt-3 w-full rounded-xl bg-cover bg-center" style={{ backgroundImage: `url(${uploadPreview})`, height: 160 }} />
                   )}
                 </div>
-
                 <div>
                   <label className="block text-xs text-gray-500 mb-2">Tag a dog (optional)</label>
                   <select
-                    value={uploadDogId}
-                    onChange={e => setUploadDogId(e.target.value)}
+                    value={uploadDogId} onChange={e => setUploadDogId(e.target.value)}
                     className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    style={{ color: '#171717', backgroundColor: 'white' }}
                   >
                     <option value="">Group photo — no specific dog</option>
                     {(hike.bookings ?? []).map(b => (
@@ -308,23 +395,18 @@ export default function HikeDetailPage() {
                     ))}
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-xs text-gray-500 mb-2">Caption (optional)</label>
                   <input
-                    type="text"
-                    value={uploadCaption}
-                    onChange={e => setUploadCaption(e.target.value)}
+                    type="text" value={uploadCaption} onChange={e => setUploadCaption(e.target.value)}
                     placeholder="What are they up to?"
                     className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
                   />
                 </div>
-
                 {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
-
                 <button
-                  onClick={handleUpload}
-                  disabled={!uploadFile || uploading}
+                  onClick={handleUpload} disabled={!uploadFile || uploading}
                   className="w-full bg-green-600 text-white py-3 rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
                   {uploading ? 'Uploading…' : 'Upload photo'}
@@ -337,11 +419,7 @@ export default function HikeDetailPage() {
               <div className="grid grid-cols-2 gap-2">
                 {photos.map(p => (
                   <div key={p.id} className="relative">
-                    <div
-                      className="w-full rounded-xl bg-cover bg-center bg-gray-100"
-                      style={{ backgroundImage: `url(${getPhotoUrl(p.storagePath)})`, height: 120 }}
-                    />
-                    {/* Delete button */}
+                    <div className="w-full rounded-xl bg-cover bg-center bg-gray-100" style={{ backgroundImage: `url(${getPhotoUrl(p.storagePath)})`, height: 120 }} />
                     <button
                       onClick={() => setConfirmDeleteId(p.id)}
                       className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center text-white text-xs hover:bg-black/70"
@@ -352,16 +430,13 @@ export default function HikeDetailPage() {
                     {(p.dogId && dogById[p.dogId]) && (
                       <p className="text-[10px] text-green-700 font-medium mt-1 truncate">{dogById[p.dogId]}</p>
                     )}
-                    {p.caption && (
-                      <p className="text-[10px] text-gray-500 truncate">{p.caption}</p>
-                    )}
+                    {p.caption && <p className="text-[10px] text-gray-500 truncate">{p.caption}</p>}
                   </div>
                 ))}
               </div>
             ) : !showUploadForm ? (
-              <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center">
-                <p className="text-sm text-gray-400">No photos yet</p>
-                <p className="text-xs text-gray-300 mt-1">Add photos from the hike above</p>
+              <div style={{ border: '1px dashed #E8E2D9', borderRadius: 16, padding: '32px 24px', textAlign: 'center' }}>
+                <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT }}>No photos yet</p>
               </div>
             ) : null}
           </div>
@@ -377,16 +452,12 @@ export default function HikeDetailPage() {
             <p className="text-sm text-gray-500 mb-6">This will permanently remove the photo from storage and cannot be undone.</p>
             {deleteError && <p className="text-xs text-red-500 mb-4">{deleteError}</p>}
             <button
-              onClick={() => handleDeletePhoto(confirmDeleteId)}
-              disabled={deleting}
+              onClick={() => handleDeletePhoto(confirmDeleteId)} disabled={deleting}
               className="w-full bg-red-600 text-white py-4 rounded-2xl text-base font-semibold mb-3 disabled:opacity-50"
             >
               {deleting ? 'Deleting…' : 'Delete photo'}
             </button>
-            <button
-              onClick={() => setConfirmDeleteId(null)}
-              className="w-full py-4 rounded-2xl text-base font-medium text-gray-600"
-            >
+            <button onClick={() => setConfirmDeleteId(null)} className="w-full py-4 rounded-2xl text-base font-medium text-gray-600">
               Cancel
             </button>
           </div>
@@ -396,37 +467,71 @@ export default function HikeDetailPage() {
   )
 }
 
-function BookingDetailRow({ booking: b, index }: { booking: HikeBooking; index: number }) {
-  return (
-    <div className="px-4 py-4">
-      <div className="flex items-start gap-3">
-        <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-xs font-semibold flex-shrink-0 mt-0.5">
-          {index}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900">{b.dogName}</p>
-          <p className="text-xs text-gray-700 mt-0.5">{b.ownerName ?? '—'}</p>
-          {b.ownerPhone && <p className="text-xs text-gray-500">{b.ownerPhone}</p>}
-          {b.ownerAddress && <p className="text-xs text-gray-500 mt-0.5">{b.ownerAddress}</p>}
-          {b.zoneName && <p className="text-[11px] text-gray-400 mt-1">{b.zoneName}</p>}
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {b.pickupMethod && <MethodChip label="Pickup" method={b.pickupMethod} />}
-            {b.dropoffMethod && <MethodChip label="Drop-off" method={b.dropoffMethod} />}
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
-              confirmed
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+// ── Dog card ─────────────────────────────────────────────────────────────────
 
-function MethodChip({ label, method }: { label: string; method: 'curbside' | 'home' }) {
-  const cls = method === 'home' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+function DogCard({
+  booking: b,
+  dragHandleProps,
+}: {
+  booking: HikeBooking
+  dragHandleProps: React.HTMLAttributes<HTMLDivElement> | null | undefined
+}) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${cls}`}>
-      {label}: {method}
-    </span>
+    <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+
+      {/* Dog photo */}
+      <div style={{ flexShrink: 0 }}>
+        {b.dogPhotoUrl ? (
+          <img
+            src={b.dogPhotoUrl}
+            alt={b.dogName}
+            style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', display: 'block' }}
+          />
+        ) : (
+          <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #E8E2D9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <PawIcon size={22} color="#4D6B46" />
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: "'Noto Sans', system-ui, sans-serif", margin: 0 }}>{b.dogName}</p>
+        {b.ownerName && (
+          <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: "'Noto Sans', system-ui, sans-serif", margin: '2px 0 0' }}>{b.ownerName}</p>
+        )}
+        {b.ownerAddress && (
+          <p style={{ fontSize: 12, color: '#8A7E72', fontFamily: "'Noto Sans', system-ui, sans-serif", margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.ownerAddress}</p>
+        )}
+        {b.zoneName && (
+          <p style={{ fontSize: 12, color: '#4D6B46', fontFamily: "'Noto Sans', system-ui, sans-serif", margin: '2px 0 0' }}>{b.zoneName}</p>
+        )}
+
+        {/* Pickup / drop-off pills */}
+        {(b.pickupMethod || b.dropoffMethod) && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {b.pickupMethod && (
+              <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', fontSize: 12, borderRadius: 20, padding: '3px 10px', fontFamily: "'Noto Sans', system-ui, sans-serif" }}>
+                Pickup: {b.pickupMethod}
+              </span>
+            )}
+            {b.dropoffMethod && (
+              <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', fontSize: 12, borderRadius: 20, padding: '3px 10px', fontFamily: "'Noto Sans', system-ui, sans-serif" }}>
+                Drop-off: {b.dropoffMethod}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Drag handle — 44px touch target */}
+      <div
+        {...(dragHandleProps ?? {})}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, flexShrink: 0, marginRight: -8, cursor: 'grab' }}
+      >
+        <DragHandleIcon />
+      </div>
+
+    </div>
   )
 }
