@@ -25,6 +25,15 @@ function IconPaw({ size = 16, color = '#E6C89A' }: { size?: number; color?: stri
 export default function LandingPage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    setIsDesktop(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   useEffect(() => {
     async function check() {
@@ -83,7 +92,7 @@ export default function LandingPage() {
             zIndex: 2, display: 'flex', justifyContent: 'center', alignItems: 'center',
           }}
         >
-          <Image src="/images/logo.png" alt="Tails to Trails" width={280} height={200} style={{ objectFit: 'contain' }} />
+          <Image src="/images/logo.png" alt="Tails to Trails" width={isDesktop ? 220 : 280} height={isDesktop ? 160 : 200} style={{ objectFit: 'contain' }} />
         </div>
 
         {/* Content — tagline + buttons at bottom */}
@@ -97,16 +106,6 @@ export default function LandingPage() {
             width: '100%',
           }}
         >
-          {/* Tagline */}
-          <div style={{ textAlign: 'center', marginBottom: 40 }}>
-            <p style={{ color: '#fff', fontSize: 20, fontFamily: FONT, marginBottom: 6 }}>
-              Adventure. Connection. Freedom.
-            </p>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, fontFamily: FONT }}>
-              For dogs. For people.
-            </p>
-          </div>
-
           {/* Buttons */}
           <div style={{ width: '100%', maxWidth: 420, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <button
