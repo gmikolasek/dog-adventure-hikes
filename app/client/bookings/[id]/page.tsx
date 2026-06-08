@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
-import { getUserState, landingRoute } from '@/lib/userState'
+import { getUserState } from '@/lib/userState'
 import { formatFull, PRICE_PER_DOG } from '@/lib/booking'
 import { getPhotoUrl, type HikePhoto } from '@/lib/photos'
 
@@ -93,7 +93,6 @@ export default function BookingDetailPage() {
       if (!session) { router.push('/'); return }
 
       const state = await getUserState(session.user.id)
-      if (landingRoute(state) !== '/client/home') { router.push(landingRoute(state)); return }
 
       setUserId(session.user.id)
 

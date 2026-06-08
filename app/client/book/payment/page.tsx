@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { getUserState, landingRoute, type Dog } from '@/lib/userState'
+import { getUserState, type Dog } from '@/lib/userState'
 import {
   PRICE_PER_DOG, TRAIL_PACK_PRICE, TRAIL_PACK_SAVING, TRAIL_PACK_CREDITS,
   getAvailableCredits, deductCredits, addTrailPack, getBookedCounts, spotsLeft,
@@ -111,7 +111,6 @@ function PaymentInner() {
       setOwnerId(session.user.id)
 
       const state = await getUserState(session.user.id)
-      if (landingRoute(state) !== '/client/home') { router.push(landingRoute(state)); return }
 
       if (!dayId || dogIds.length === 0 || !pickup || !dropoff) { router.push('/client/book'); return }
 

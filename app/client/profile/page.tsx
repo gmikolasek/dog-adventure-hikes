@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUserState, landingRoute } from '@/lib/userState'
+import { getUserState } from '@/lib/userState'
 import { uploadDogProfilePhoto } from '@/lib/photos'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -185,7 +185,6 @@ export default function ClientProfile() {
       if (!session) { router.push('/'); return }
 
       const state = await getUserState(session.user.id)
-      if (landingRoute(state) !== '/client/home') { router.push(landingRoute(state)); return }
 
       setUserId(session.user.id)
 

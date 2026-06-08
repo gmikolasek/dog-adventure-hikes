@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUserState, landingRoute, type Dog } from '@/lib/userState'
+import { getUserState, type Dog } from '@/lib/userState'
 import {
   getBookedCounts, spotsLeft, formatShort, todayIso,
   type HikeDay, type Method,
@@ -111,8 +111,6 @@ export default function BookHike() {
       if (!session) { router.push('/'); return }
 
       const state = await getUserState(session.user.id)
-      const dest = landingRoute(state)
-      if (dest !== '/client/home') { router.push(dest); return }
 
       setUserId(session.user.id)
 

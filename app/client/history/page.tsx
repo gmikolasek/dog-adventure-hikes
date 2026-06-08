@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUserState, landingRoute } from '@/lib/userState'
+import { getUserState } from '@/lib/userState'
 import { formatShort, TRAIL_PACK_PRICE, TRAIL_PACK_CREDITS } from '@/lib/booking'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -143,7 +143,6 @@ export default function HistoryPage() {
       if (!session) { router.push('/'); return }
 
       const state = await getUserState(session.user.id)
-      if (landingRoute(state) !== '/client/home') { router.push(landingRoute(state)); return }
 
       const dogNameById: Record<string, string> = {}
       for (const dog of state.dogs) dogNameById[dog.id] = dog.name
