@@ -11,6 +11,19 @@ import {
 type Zone = { id: string; name: string }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const FONT = "'Noto Sans', system-ui, sans-serif"
+
+function PawIcon({ size = 8, color = '#26452B' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <circle cx="6"  cy="5.5" r="1.8"/>
+      <circle cx="11" cy="4"   r="1.8"/>
+      <circle cx="16" cy="4"   r="1.8"/>
+      <circle cx="20.5" cy="7" r="1.6"/>
+      <ellipse cx="12.5" cy="15.5" rx="6" ry="5"/>
+    </svg>
+  )
+}
 
 export default function StaffCalendar() {
   const router = useRouter()
@@ -116,71 +129,122 @@ export default function StaffCalendar() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontSize: 14, color: '#8A7E72' }}>Loading…</p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
-      <div className="w-full max-w-sm mx-auto">
+    <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, padding: '40px 24px' }}>
+      <div style={{ width: '100%', maxWidth: 384, margin: '0 auto' }}>
 
-        <button onClick={() => router.push('/staff')} className="text-sm text-gray-500 hover:text-gray-700 mb-6">
-          ← Dashboard
+        {/* Back button */}
+        <button
+          onClick={() => router.push('/staff')}
+          style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#E8E2D9', border: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 24, flexShrink: 0, padding: 0 }}
+        >
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#26452B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
         </button>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Calendar</h1>
-          <p className="text-gray-500 mt-1 text-sm">Open or block the next two weeks</p>
+        {/* Title */}
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: 0 }}>Calendar</h1>
+          <p style={{ color: '#8A7E72', marginTop: 4, fontSize: 14, fontFamily: FONT, margin: '4px 0 0' }}>Open or block the next two weeks</p>
         </div>
 
-        {/* Weekday header */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
+        {/* Weekday headers */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
           {WEEKDAYS.map(w => (
-            <div key={w} className="text-center text-[11px] text-gray-400">{w}</div>
+            <div key={w} style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#8A7E72', fontFamily: FONT }}>{w}</div>
           ))}
         </div>
 
         {/* 2-week grid */}
-        <div className="grid grid-cols-7 gap-1 mb-6">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 20 }}>
           {dates.map(d => {
             const iso = isoDate(d)
             const day = days[iso]
             const past = iso < today
             const isSel = selected === iso
+            const isToday = iso === today
             const open = day?.status === 'open'
             const blocked = day?.status === 'blocked' || day?.status === 'cancelled'
+
+            let bg = 'white'
+            let border = '1px solid #E8E2D9'
+            let dateColor = '#8A7E72'
+            let dateFontWeight = 400
+
+            if (!past) {
+              if (open) {
+                bg = '#E8F0E5'
+                border = '1px solid #26452B'
+                dateColor = '#26452B'
+                dateFontWeight = 700
+              } else if (blocked) {
+                bg = '#EEE9E0'
+                border = '1px solid #C0B8AE'
+                dateColor = '#8A7E72'
+              }
+              if (isToday) border = '2px solid #E08A3E'
+            }
+
             return (
               <button
                 key={iso}
                 type="button"
                 disabled={past}
                 onClick={() => selectDay(iso)}
-                className={[
-                  'aspect-square rounded-lg text-sm font-medium flex flex-col items-center justify-center transition-colors',
-                  past ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-50',
-                  isSel ? 'ring-2 ring-green-500' : '',
-                  open ? 'bg-green-100 text-green-800' : blocked ? 'bg-gray-200 text-gray-500' : 'border border-gray-200 text-gray-700',
-                ].join(' ')}
+                style={{
+                  aspectRatio: '1',
+                  borderRadius: 12,
+                  border,
+                  outline: isSel && !isToday ? '2px solid #26452B' : 'none',
+                  outlineOffset: 1,
+                  backgroundColor: bg,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: past ? 'not-allowed' : 'pointer',
+                  padding: 0,
+                  fontFamily: FONT,
+                  gap: 2,
+                  opacity: past ? 0.35 : 1,
+                }}
               >
-                {d.getDate()}
-                {open && <span className="w-1 h-1 rounded-full bg-green-600 mt-0.5" />}
-                {blocked && <span className="text-[9px] leading-none">blocked</span>}
+                <span style={{ fontSize: 13, fontWeight: dateFontWeight, color: dateColor, lineHeight: 1 }}>
+                  {d.getDate()}
+                </span>
+                {open && !past && <PawIcon size={8} color="#26452B" />}
+                {blocked && !past && <span style={{ fontSize: 10, color: '#8A7E72', lineHeight: 1 }}>blocked</span>}
               </button>
             )
           })}
         </div>
 
-        <div className="flex items-center gap-4 mb-6 text-[11px] text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-200" /> Open</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-200" /> Blocked</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-gray-200" /> Unset</span>
+        {/* Legend */}
+        <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#E8F0E5', border: '1px solid #26452B', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: '#3B2A1F', fontFamily: FONT }}>Open</span>
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '1px solid #C0B8AE', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: '#3B2A1F', fontFamily: FONT }}>Blocked</span>
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: 'white', border: '1px solid #E8E2D9', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: '#3B2A1F', fontFamily: FONT }}>Unset</span>
+          </span>
         </div>
 
         {/* Editor */}
         {selected && (
-          <div className="rounded-2xl border border-gray-200 p-4">
+          <div className="rounded-2xl border border-gray-200 p-4" style={{ backgroundColor: 'white' }}>
             <p className="text-sm font-semibold text-gray-900 mb-3">{formatFull(selected)}</p>
 
             <div className="flex gap-2 mb-4">
@@ -232,6 +296,7 @@ export default function StaffCalendar() {
                     type="text" value={destination} onChange={e => setDestination(e.target.value)}
                     placeholder="e.g. Bogd Khan ridge"
                     className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
                   />
                 </div>
 
@@ -241,6 +306,7 @@ export default function StaffCalendar() {
                     type="number" min={1} value={capacity}
                     onChange={e => setCapacity(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-20 rounded-xl border border-gray-300 px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-500"
+                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
                   />
                 </div>
 
@@ -256,6 +322,7 @@ export default function StaffCalendar() {
                     value={note} onChange={e => setNote(e.target.value)} rows={2}
                     placeholder="e.g. Bring extra water — long route"
                     className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
                   />
                 </div>
               </div>
