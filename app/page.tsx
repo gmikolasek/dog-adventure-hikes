@@ -40,7 +40,12 @@ export default function LandingPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const state = await getUserState(session.user.id)
-        router.replace(landingRoute(state))
+        const route = landingRoute(state)
+        if (route !== '/') {
+          router.replace(route)
+        } else {
+          setChecking(false)
+        }
         return
       }
       setChecking(false)
@@ -109,7 +114,7 @@ export default function LandingPage() {
           {/* Buttons */}
           <div style={{ width: '100%', maxWidth: 420, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <button
-              onClick={() => router.push('/onboarding')}
+              onClick={() => router.push('/login')}
               style={{
                 width: '100%', height: 54, borderRadius: 30, border: 'none',
                 backgroundColor: '#E08A3E', color: '#fff',
