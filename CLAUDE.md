@@ -250,6 +250,7 @@ style={{
 
 ### Supabase RPC functions
 - `hike_day_booked_counts()` — returns `{ hike_day_id, confirmed }` rows for all days; SECURITY DEFINER so clients can't read others' bookings
+- `cancel_booking(booking_id uuid)` — handles cancellation window logic (5pm ULT cutoff); sets status to `'cancelled'` and credits appropriately
 
 ### Migrations applied
 - `pickup_order integer` column added to `bookings` — run manually in Supabase. Hike detail page drag-to-reorder is working correctly.
@@ -370,6 +371,8 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 
 5. **`contract_accepted_at` / `contract_version` columns not yet migrated** — Must run `ALTER TABLE users ADD COLUMN contract_accepted_at timestamptz; ALTER TABLE users ADD COLUMN contract_version text;` in Supabase before onboarding contract step will work.
 
+6. **`cancel_booking` UTC offset unverified** — Function uses UTC+8 for 5pm ULT cutoff; confirm Supabase instance timezone matches Ulaanbaatar (UTC+8) or the cancellation window logic will be wrong.
+
 ### Known working
 - Drag reorder on both pre-hike (`/staff/hikes/[date]`) and run (`/staff/hikes/[date]/run`) pages saves `pickup_order` to Supabase correctly
 - Auto-advance to Hike tab when all pending dogs are confirmed or marked no-show
@@ -379,6 +382,9 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 ### Resolved
 - `landingRoute()` stale approval check — now queries `dogs.approval_status` instead of `users.approved_at && users.zone_id`; also checks `contract_accepted_at` before routing to client area
 - Onboarding localStorage-deferred flow — replaced with auth-first flow: OTP first, then each step writes directly to Supabase; no localStorage used anywhere in onboarding
+- `landingRoute()` guard pattern removed from all client pages — was causing redirect loops; all client pages now check session only, never re-run routing logic
+- Landing page (`app/page.tsx`) redirect loop — `router.replace` now guarded with `route !== '/'`; Get Started button changed from `/onboarding` to `/login` so authenticated users are routed correctly
+- `cancel_booking` RPC function created in Supabase — handles cancellation window logic server-side
 - `onboarding/pending` stale zone_id check — removed `&& state.profile?.zone_id` guard; any approved dog redirects immediately to `/client/home`
 - Exceptions page showing 0 — page was a placeholder with hardcoded empty array; now queries `bookings WHERE status IN ('no_show', 'cancelled')` joined with dogs/users/hike_days
 - `/client` route 404 — added `app/client/page.tsx` as redirect shim to `/client/home`
@@ -395,7 +401,12 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 ## Recent Commits (newest first)
 
 ```
-(pending)  Rewrite onboarding: auth-first flow, direct DB writes, fix landingRoute()
+4c418e1  Remove landingRoute guards from all client pages
+e96eed8  Remove landingRoute guard from client home page
+a33496e  Fix redirect loop on landing page + Get Started button routing
+8d9512a  Trim login debug logs to exact sequence
+56d75ea  Add login debug logging to trace getUserState/landingRoute loop
+4307dcd  Rewrite onboarding: auth-first flow, direct DB writes, fix landingRoute()
 40d2af0  Fix exceptions page: implement real DB query + full UI polish
 fb5974f  Hike run page: drag-to-reorder pickup queue, remove action buttons from list
 a9bd812  Hike run page: full UI redesign + pickup_order sort + dog photos
