@@ -7,6 +7,16 @@ import { getUserState } from '@/lib/userState'
 import { formatFull, PRICE_PER_DOG } from '@/lib/booking'
 import { getPhotoUrl, type HikePhoto } from '@/lib/photos'
 
+const FONT = "'Noto Sans', system-ui, sans-serif"
+const forest = '#26452B'
+const brown = '#3B2A1F'
+const muted = '#8A7E72'
+const cardBorder = '#E8E2D9'
+const bg = '#F5F0E8'
+const badgeBg = '#EEE9E0'
+const completeBg = '#E8F0E5'
+const red = '#ef4444'
+
 type Method = 'curbside' | 'home'
 
 type BookingDetail = {
@@ -221,18 +231,21 @@ export default function BookingDetailPage() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main style={{ minHeight: '100vh', backgroundColor: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px', fontFamily: FONT }}>
+        <p style={{ fontSize: 14, color: muted }}>Loading…</p>
       </main>
     )
   }
 
   if (notFound || !booking) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <div className="text-center">
-          <p className="text-sm text-gray-500 mb-4">Booking not found.</p>
-          <button onClick={() => router.push('/client/home')} className="text-sm text-green-600">
+      <main style={{ minHeight: '100vh', backgroundColor: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px', fontFamily: FONT }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: 14, color: muted, marginBottom: 16 }}>Booking not found.</p>
+          <button
+            onClick={() => router.push('/client/home')}
+            style={{ fontSize: 14, color: forest, background: 'none', border: 'none', cursor: 'pointer', fontFamily: FONT }}
+          >
             Back to home
           </button>
         </div>
@@ -250,48 +263,55 @@ export default function BookingDetailPage() {
   const hasPhotos = dogPhotos.length > 0 || groupPhotos.length > 0
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
-      <div className="w-full max-w-sm mx-auto">
+    <main style={{ minHeight: '100vh', backgroundColor: bg, padding: '40px 24px', fontFamily: FONT }}>
+      <div style={{ width: '100%', maxWidth: 390, margin: '0 auto' }}>
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
           <button
             onClick={() => router.push('/client/home')}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 text-lg leading-none"
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              backgroundColor: cardBorder, border: 'none',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+            }}
           >
-            ←
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 12L6 8l4-4" stroke={forest} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900 leading-tight">
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: brown, margin: 0 }}>
               {booking.hikeDate ? formatFull(booking.hikeDate) : 'Booking'}
             </h1>
             {booking.destination && (
-              <p className="text-xs text-gray-500 mt-0.5">{booking.destination}</p>
+              <p style={{ fontSize: 13, color: muted, margin: '2px 0 0' }}>{booking.destination}</p>
             )}
           </div>
         </div>
 
         {/* Booking details card */}
-        <div className="rounded-2xl border border-gray-200 p-5 mb-5">
+        <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
           {/* Dog avatar + name */}
-          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${cardBorder}` }}>
             <DogAvatar photoUrl={booking.dogPhotoUrl} name={booking.dogName} size={44} />
             <div>
-              <p className="text-sm font-semibold text-gray-900">{booking.dogName}</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: brown, margin: 0 }}>{booking.dogName}</p>
               <BookingStatusBadge status={isCompleted ? 'completed' : booking.status} />
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <DetailRow label="Pickup" value={booking.pickupMethod ?? '—'} capitalize />
             <DetailRow label="Drop-off" value={booking.dropoffMethod ?? '—'} capitalize />
-            <div className="pt-3 border-t border-gray-100">
+            <div style={{ paddingTop: 12, borderTop: `1px solid ${cardBorder}` }}>
               {isCredit ? (
                 <DetailRow label="Paid with" value="Trail Pack credit" />
               ) : isTrailPack ? (
                 <>
                   <DetailRow label="Amount paid" value={`₮${booking.amountCharged.toLocaleString()}`} />
-                  <p className="text-[11px] text-amber-600 mt-0.5 text-right">Trail Pack · 4 hikes</p>
+                  <p style={{ fontSize: 11, color: '#B45309', margin: '4px 0 0', textAlign: 'right' }}>Trail Pack · 4 hikes</p>
                 </>
               ) : (
                 <DetailRow label="Amount paid" value={`₮${booking.amountCharged.toLocaleString()}`} />
@@ -302,10 +322,13 @@ export default function BookingDetailPage() {
 
         {/* Method editor — only for confirmed future bookings */}
         {canEdit && (
-          <div className="rounded-2xl border border-gray-200 p-5 mb-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Change pickup / drop-off</h2>
+          <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 3, height: 16, backgroundColor: forest, borderRadius: 2 }} />
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: brown, margin: 0 }}>Change pickup / drop-off</h2>
+            </div>
 
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <MethodToggle label="Pickup" value={editPickup} onChange={setEditPickup} />
               <MethodToggle label="Drop-off" value={editDropoff} onChange={setEditDropoff} />
             </div>
@@ -314,44 +337,58 @@ export default function BookingDetailPage() {
               <button
                 onClick={saveMethod}
                 disabled={saving}
-                className="w-full mt-4 bg-green-600 text-white py-3 rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                style={{
+                  width: '100%', marginTop: 16,
+                  backgroundColor: forest, color: 'white',
+                  borderRadius: 12, fontWeight: 600,
+                  padding: '14px', border: 'none',
+                  fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer',
+                  opacity: saving ? 0.6 : 1, fontFamily: FONT,
+                }}
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             )}
             {saveSuccess && (
-              <p className="text-xs text-green-600 text-center mt-2">Saved.</p>
+              <p style={{ fontSize: 12, color: forest, textAlign: 'center', marginTop: 8 }}>Saved.</p>
             )}
           </div>
         )}
 
-        {/* Cancel section — only for confirmed future bookings */}
+        {/* Cancel button — only for confirmed future bookings */}
         {canEdit && !showCancelPanel && (
           <button
             onClick={() => setShowCancelPanel(true)}
-            className="w-full rounded-xl border border-red-200 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mb-5"
+            style={{
+              width: '100%', borderRadius: 12,
+              border: `1px solid ${red}`,
+              padding: '14px', fontSize: 14, fontWeight: 600,
+              color: red, backgroundColor: 'white',
+              cursor: 'pointer', marginBottom: 16, fontFamily: FONT,
+            }}
           >
             Cancel booking
           </button>
         )}
 
+        {/* Cancel panel */}
         {canEdit && showCancelPanel && (
-          <div className="rounded-2xl border border-red-200 p-5 mb-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Cancel this booking?</h2>
+          <div style={{ backgroundColor: 'white', border: `1px solid ${red}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: brown, margin: '0 0 12px' }}>Cancel this booking?</h2>
 
-            <div className="rounded-xl bg-gray-50 p-4 mb-4 text-xs text-gray-600 leading-relaxed space-y-1.5">
-              <p className="font-medium text-gray-700">Cancellation policy</p>
+            <div style={{ borderRadius: 10, backgroundColor: bg, padding: 14, marginBottom: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: brown, margin: '0 0 6px' }}>Cancellation policy</p>
               {creditEligible ? (
-                <p>
+                <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.5 }}>
                   You&apos;re cancelling before 5pm the day before the hike.{' '}
-                  <span className="text-green-700 font-medium">
+                  <span style={{ color: forest, fontWeight: 600 }}>
                     Your booking fee will be converted to 1 Trail Pack credit, valid for 60 days.
                   </span>
                 </p>
               ) : (
-                <p>
+                <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.5 }}>
                   The cancellation window has passed (5pm the day before the hike).{' '}
-                  <span className="text-red-600 font-medium">
+                  <span style={{ color: red, fontWeight: 600 }}>
                     Your booking fee will be forfeited — no credit will be issued.
                   </span>
                 </p>
@@ -359,20 +396,31 @@ export default function BookingDetailPage() {
             </div>
 
             {cancelError && (
-              <p className="text-xs text-red-500 mb-3">{cancelError}</p>
+              <p style={{ fontSize: 12, color: red, marginBottom: 12 }}>{cancelError}</p>
             )}
 
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
                 onClick={confirmCancel}
                 disabled={cancelling}
-                className="w-full bg-red-600 text-white py-3 rounded-xl text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                style={{
+                  width: '100%', backgroundColor: red, color: 'white',
+                  padding: '14px', borderRadius: 12, border: 'none',
+                  fontSize: 14, fontWeight: 600,
+                  cursor: cancelling ? 'not-allowed' : 'pointer',
+                  opacity: cancelling ? 0.6 : 1, fontFamily: FONT,
+                }}
               >
                 {cancelling ? 'Cancelling…' : 'Confirm cancellation'}
               </button>
               <button
                 onClick={() => { setShowCancelPanel(false); setCancelError('') }}
-                className="w-full py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                style={{
+                  width: '100%', backgroundColor: 'white',
+                  border: `1px solid ${cardBorder}`, color: brown,
+                  borderRadius: 12, padding: '12px 24px',
+                  fontSize: 14, fontWeight: 400, cursor: 'pointer', fontFamily: FONT,
+                }}
               >
                 Keep booking
               </button>
@@ -380,48 +428,50 @@ export default function BookingDetailPage() {
           </div>
         )}
 
-        {/* Completed state message */}
+        {/* Completed state */}
         {isCompleted && (
-          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 text-center mb-5">
-            <p className="text-sm font-medium text-blue-700">Hike completed 🥾</p>
+          <div style={{ backgroundColor: completeBg, border: '1px solid #C8DEC4', borderRadius: 16, padding: 16, textAlign: 'center', marginBottom: 16 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: forest, margin: 0 }}>Hike completed</p>
             {booking.droppedOffAt && (
-              <p className="text-xs text-blue-500 mt-1">
+              <p style={{ fontSize: 12, color: '#4D6B46', margin: '4px 0 0' }}>
                 Dropped off {formatDropoffTime(booking.droppedOffAt)}
               </p>
             )}
           </div>
         )}
 
-        {/* Guide note — shown when completed and a note was left */}
+        {/* Guide note */}
         {isCompleted && booking.dropoffNote && (
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-5 mb-5">
-            <p className="text-xs font-semibold text-green-700 mb-1.5">Note from your guide</p>
-            <p className="text-sm text-gray-800 leading-relaxed">{booking.dropoffNote}</p>
+          <div style={{ backgroundColor: completeBg, border: '1px solid #C8DEC4', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: forest, margin: '0 0 6px' }}>Note from your guide</p>
+            <p style={{ fontSize: 14, color: brown, margin: 0, lineHeight: 1.6 }}>{booking.dropoffNote}</p>
           </div>
         )}
 
-        {/* Cancelled state message */}
+        {/* Cancelled state */}
         {booking.status === 'cancelled' && (
-          <div className="rounded-2xl border border-gray-200 p-5 text-center mb-5">
-            <p className="text-sm text-gray-500">This booking was cancelled.</p>
+          <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16, textAlign: 'center', marginBottom: 16 }}>
+            <p style={{ fontSize: 14, color: muted, margin: 0 }}>This booking was cancelled.</p>
             {booking.cancelledAt && (
-              <p className="text-xs text-gray-400 mt-1">
+              <p style={{ fontSize: 12, color: muted, margin: '4px 0 0' }}>
                 {new Date(booking.cancelledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             )}
           </div>
         )}
 
-        {/* ── Photos section ── */}
+        {/* Photos section */}
         {hasPhotos && (
-          <div className="mt-2">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Photos</h2>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 3, height: 16, backgroundColor: forest, borderRadius: 2 }} />
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: brown, margin: 0 }}>Photos</h2>
+            </div>
 
-            {/* Dog-specific photos first */}
             {dogPhotos.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs text-gray-400 mb-2">{booking.dogName}</p>
-                <div className="space-y-2">
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 12, color: muted, margin: '0 0 8px' }}>{booking.dogName}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {dogPhotos.map(p => (
                     <PhotoCard key={p.id} photo={p} onTap={() => setLightbox(p)} />
                   ))}
@@ -429,11 +479,10 @@ export default function BookingDetailPage() {
               </div>
             )}
 
-            {/* Group photos below */}
             {groupPhotos.length > 0 && (
               <div>
-                <p className="text-xs text-gray-400 mb-2">Group photos</p>
-                <div className="space-y-2">
+                <p style={{ fontSize: 12, color: muted, margin: '0 0 8px' }}>Group photos</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {groupPhotos.map(p => (
                     <PhotoCard key={p.id} photo={p} onTap={() => setLightbox(p)} />
                   ))}
@@ -448,19 +497,20 @@ export default function BookingDetailPage() {
       {/* Lightbox */}
       {lightbox && (
         <div
-          className="fixed inset-0 bg-black/90 z-50 flex flex-col"
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ backgroundColor: 'rgba(0,0,0,0.9)' }}
           onClick={() => setLightbox(null)}
         >
-          <div className="flex items-center justify-between px-5 py-4">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px' }}>
             <button
               onClick={() => setLightbox(null)}
-              className="text-white text-sm font-medium"
+              style={{ color: 'white', fontSize: 14, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: FONT }}
             >
               ✕ Close
             </button>
             <button
               onClick={e => { e.stopPropagation(); downloadPhoto(getPhotoUrl(lightbox.storagePath)) }}
-              className="text-white text-sm font-medium"
+              style={{ color: 'white', fontSize: 14, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: FONT }}
             >
               ↓ Download
             </button>
@@ -471,19 +521,19 @@ export default function BookingDetailPage() {
             onClick={e => e.stopPropagation()}
           >
             <div
-              className="w-full rounded-2xl bg-cover bg-center"
               style={{
+                width: '100%', borderRadius: 16,
                 backgroundImage: `url(${getPhotoUrl(lightbox.storagePath)})`,
-                height: '70vw',
-                maxHeight: '65vh',
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                height: '70vw', maxHeight: '65vh',
               }}
             />
           </div>
 
           {lightbox.caption && (
-            <p className="text-white text-sm text-center px-6 pb-8 pt-4">{lightbox.caption}</p>
+            <p style={{ color: 'white', fontSize: 14, textAlign: 'center', padding: '16px 24px 32px', fontFamily: FONT }}>{lightbox.caption}</p>
           )}
-          {!lightbox.caption && <div className="pb-8" />}
+          {!lightbox.caption && <div style={{ paddingBottom: 32 }} />}
         </div>
       )}
     </main>
@@ -494,8 +544,13 @@ function DogAvatar({ photoUrl, name, size }: { photoUrl: string | null; name: st
   if (photoUrl) {
     return (
       <div
-        className="rounded-full bg-gray-100 bg-cover bg-center flex-shrink-0"
-        style={{ width: size, height: size, backgroundImage: `url(${photoUrl})` }}
+        style={{
+          width: size, height: size, borderRadius: '50%',
+          backgroundColor: badgeBg,
+          backgroundImage: `url(${photoUrl})`,
+          backgroundSize: 'cover', backgroundPosition: 'center',
+          flexShrink: 0,
+        }}
         role="img"
         aria-label={name}
       />
@@ -503,8 +558,12 @@ function DogAvatar({ photoUrl, name, size }: { photoUrl: string | null; name: st
   }
   return (
     <div
-      className="rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"
-      style={{ width: size, height: size }}
+      style={{
+        width: size, height: size, borderRadius: '50%',
+        backgroundColor: badgeBg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}
     >
       <span style={{ fontSize: size * 0.5 }}>🐕</span>
     </div>
@@ -515,17 +574,26 @@ function PhotoCard({ photo, onTap }: { photo: HikePhoto; onTap: () => void }) {
   return (
     <button
       onClick={onTap}
-      className="w-full rounded-2xl overflow-hidden text-left"
-      style={{ display: 'block' }}
+      style={{ width: '100%', borderRadius: 16, overflow: 'hidden', display: 'block', border: 'none', padding: 0, cursor: 'pointer' }}
     >
       <div
-        className="w-full rounded-2xl bg-cover bg-center bg-gray-100 relative"
-        style={{ backgroundImage: `url(${getPhotoUrl(photo.storagePath)})`, height: 200 }}
+        style={{
+          width: '100%', borderRadius: 16,
+          backgroundImage: `url(${getPhotoUrl(photo.storagePath)})`,
+          backgroundSize: 'cover', backgroundPosition: 'center',
+          backgroundColor: badgeBg, height: 200, position: 'relative',
+        }}
       >
         {photo.caption && (
-          <div className="absolute bottom-0 left-0 right-0 rounded-b-2xl px-4 py-3"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }}>
-            <p className="text-xs text-white">{photo.caption}</p>
+          <div
+            style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              borderBottomLeftRadius: 16, borderBottomRightRadius: 16,
+              padding: '12px 16px',
+              background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
+            }}
+          >
+            <p style={{ fontSize: 12, color: 'white', margin: 0 }}>{photo.caption}</p>
           </div>
         )}
       </div>
@@ -535,9 +603,9 @@ function PhotoCard({ photo, onTap }: { photo: HikePhoto; onTap: () => void }) {
 
 function DetailRow({ label, value, capitalize }: { label: string; value: string; capitalize?: boolean }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-gray-500">{label}</span>
-      <span className={`text-sm font-medium text-gray-900 ${capitalize ? 'capitalize' : ''}`}>{value}</span>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <span style={{ fontSize: 12, color: muted }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: brown, textTransform: capitalize ? 'capitalize' : undefined }}>{value}</span>
     </div>
   )
 }
@@ -549,17 +617,19 @@ function MethodToggle({ label, value, onChange }: {
 }) {
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-1.5">{label}</p>
-      <div className="grid grid-cols-2 gap-2">
+      <p style={{ fontSize: 12, color: muted, margin: '0 0 8px' }}>{label}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {(['curbside', 'home'] as Method[]).map(m => (
           <button
             key={m}
             onClick={() => onChange(m)}
-            className={`py-2.5 rounded-xl text-sm font-medium border transition-colors capitalize ${
-              value === m
-                ? 'bg-green-600 text-white border-green-600'
-                : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
-            }`}
+            style={{
+              padding: '10px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+              textTransform: 'capitalize', cursor: 'pointer', fontFamily: FONT,
+              border: value === m ? `1px solid ${forest}` : `1px solid ${cardBorder}`,
+              backgroundColor: value === m ? forest : 'white',
+              color: value === m ? 'white' : brown,
+            }}
           >
             {m}
           </button>
@@ -570,16 +640,22 @@ function MethodToggle({ label, value, onChange }: {
 }
 
 function BookingStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    confirmed: { label: 'Confirmed', cls: 'bg-green-100 text-green-700' },
-    completed: { label: 'Completed', cls: 'bg-blue-100 text-blue-700' },
-    cancelled: { label: 'Cancelled', cls: 'bg-red-100 text-red-600' },
-    no_show: { label: 'No-show', cls: 'bg-red-100 text-red-600' },
-    pending_payment: { label: 'Pending', cls: 'bg-amber-100 text-amber-700' },
+  const map: Record<string, { label: string; bg: string; color: string }> = {
+    confirmed: { label: 'Confirmed', bg: completeBg, color: forest },
+    completed: { label: 'Completed', bg: completeBg, color: forest },
+    cancelled: { label: 'Cancelled', bg: '#FEE2E2', color: '#B91C1C' },
+    no_show: { label: 'No-show', bg: '#FEE2E2', color: '#B91C1C' },
+    pending_payment: { label: 'Pending', bg: '#FEF3C7', color: '#B45309' },
   }
-  const s = map[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600' }
+  const s = map[status] ?? { label: status, bg: badgeBg, color: muted }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '2px 8px', borderRadius: 999,
+      fontSize: 12, fontWeight: 600,
+      backgroundColor: s.bg, color: s.color,
+      marginTop: 4,
+    }}>
       {s.label}
     </span>
   )
