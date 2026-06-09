@@ -133,9 +133,18 @@ export default function ClientsList() {
                   ) : (
                     c.dogs.map(d => (
                       <div key={d.id} className="flex items-center" style={{ gap: 6 }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill={moss}>
-                          <path d="M4.5 11c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm15 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-1.5 1.5c0-1.1-.9-2-2-2h-1c-.36 0-.69.1-.98.27C13.4 9.7 12.74 9.5 12 9.5s-1.4.2-2.02.77c-.29-.17-.62-.27-.98-.27H8c-1.1 0-2 .9-2 2v1c0 2.21 1.79 4 4 4h4c2.21 0 4-1.79 4-4v-1zm-9.5-5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm5 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
-                        </svg>
+                        {d.photo_url ? (
+                          <div style={{
+                            width: 28, height: 28, borderRadius: '50%',
+                            backgroundImage: `url(${d.photo_url})`,
+                            backgroundSize: 'cover', backgroundPosition: 'center',
+                            flexShrink: 0,
+                          }} />
+                        ) : (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill={moss} style={{ flexShrink: 0 }}>
+                            <path d="M4.5 11c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm15 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-1.5 1.5c0-1.1-.9-2-2-2h-1c-.36 0-.69.1-.98.27C13.4 9.7 12.74 9.5 12 9.5s-1.4.2-2.02.77c-.29-.17-.62-.27-.98-.27H8c-1.1 0-2 .9-2 2v1c0 2.21 1.79 4 4 4h4c2.21 0 4-1.79 4-4v-1zm-9.5-5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm5 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
+                          </svg>
+                        )}
                         <p style={{ fontSize: 13, color: brown, margin: 0 }}>
                           {d.name}{d.breed ? ` · ${d.breed}` : ''}
                         </p>

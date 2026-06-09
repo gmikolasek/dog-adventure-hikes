@@ -6,6 +6,7 @@ export type ClientDog = {
   name: string
   breed: string | null
   approval_status: string | null
+  photo_url: string | null
 }
 
 export type ClientStatus = 'active' | 'pending' | 'incomplete' | 'rejected'
@@ -53,10 +54,10 @@ export async function getClients(): Promise<ClientRow[]> {
     ids.length
       ? supabase
           .from('dogs')
-          .select('id, owner_id, name, breed, approval_status, created_at')
+          .select('id, owner_id, name, breed, approval_status, photo_url, created_at')
           .in('owner_id', ids)
           .order('created_at', { ascending: true })
-      : Promise.resolve({ data: [] as Array<{ id: string; owner_id: string; name: string; breed: string | null; approval_status: string | null; created_at: string }> }),
+      : Promise.resolve({ data: [] as Array<{ id: string; owner_id: string; name: string; breed: string | null; approval_status: string | null; photo_url: string | null; created_at: string }> }),
     supabase.from('zones').select('id, name'),
     ids.length
       ? supabase
@@ -71,7 +72,7 @@ export async function getClients(): Promise<ClientRow[]> {
   const dogsByOwner: Record<string, ClientDog[]> = {}
   for (const d of (dogResult.data ?? [])) {
     ;(dogsByOwner[d.owner_id] ??= []).push({
-      id: d.id, name: d.name, breed: d.breed, approval_status: d.approval_status,
+      id: d.id, name: d.name, breed: d.breed, approval_status: d.approval_status, photo_url: d.photo_url,
     })
   }
 
