@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
+const FONT = "'Noto Sans', system-ui, sans-serif"
+const forest = '#26452B'
+const brown = '#3B2A1F'
+const muted = '#8A7E72'
+const cardBorder = '#E8E2D9'
+const bg = '#F5F0E8'
+const badgeBg = '#EEE9E0'
+const completeBg = '#E8F0E5'
+const red = '#ef4444'
+const orange = '#E08A3E'
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Profile = {
@@ -226,20 +237,32 @@ export default function ClientDetail() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: bg, fontFamily: FONT }}>
+        <p style={{ fontSize: 14, color: muted }}>Loading…</p>
       </main>
     )
   }
 
   if (!profile) {
     return (
-      <main className="min-h-screen bg-white px-6 py-10">
+      <main className="min-h-screen px-6 py-10" style={{ backgroundColor: bg, fontFamily: FONT }}>
         <div className="w-full max-w-sm mx-auto">
-          <button onClick={() => router.push('/staff/clients')} className="text-sm text-gray-500 hover:text-gray-700 mb-6">
-            ← Clients
-          </button>
-          <p className="text-sm text-gray-400">Client not found.</p>
+          <div style={{ marginBottom: 24 }}>
+            <button
+              onClick={() => router.push('/staff/clients')}
+              style={{
+                width: 32, height: 32, borderRadius: '50%',
+                backgroundColor: cardBorder, border: 'none',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M10 12L6 8l4-4" stroke={forest} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <p style={{ fontSize: 14, color: muted }}>Client not found.</p>
         </div>
       </main>
     )
@@ -248,51 +271,87 @@ export default function ClientDetail() {
   const isActive = !!(profile.approved_at && profile.zone_id)
   const zoneChanged = selectedZone !== profile.zone_id
 
+  const textareaStyle = {
+    width: '100%',
+    borderRadius: 10,
+    border: `1px solid ${cardBorder}`,
+    padding: '12px',
+    fontSize: 14,
+    color: '#171717',
+    backgroundColor: 'white',
+    WebkitTextFillColor: '#171717' as const,
+    outline: 'none',
+    fontFamily: FONT,
+    boxSizing: 'border-box' as const,
+    resize: 'none' as const,
+    display: 'block',
+  }
+
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
+    <main className="min-h-screen px-6 py-10" style={{ backgroundColor: bg, fontFamily: FONT }}>
       <div className="w-full max-w-sm mx-auto">
 
-        <button
-          onClick={() => router.push('/staff/clients')}
-          className="text-sm text-gray-500 hover:text-gray-700 mb-6"
-        >
-          ← Clients
-        </button>
+        {/* Back button */}
+        <div style={{ marginBottom: 24 }}>
+          <button
+            onClick={() => router.push('/staff/clients')}
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              backgroundColor: cardBorder, border: 'none',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 12L6 8l4-4" stroke={forest} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex items-start justify-between" style={{ marginBottom: 20 }}>
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold text-gray-900 truncate">{profile.name ?? 'Unnamed'}</h1>
-            {profile.phone && <p className="text-sm text-gray-500">{profile.phone}</p>}
+            <h1 className="truncate" style={{ fontSize: 26, fontWeight: 700, color: brown, margin: 0, fontFamily: FONT }}>{profile.name ?? 'Unnamed'}</h1>
+            {profile.phone && <p style={{ fontSize: 14, color: muted, margin: '4px 0 0', fontFamily: FONT }}>{profile.phone}</p>}
           </div>
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-            isActive ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-          }`}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center',
+            borderRadius: 999, padding: '3px 10px',
+            fontSize: 12, fontWeight: 600, flexShrink: 0, marginLeft: 12,
+            backgroundColor: isActive ? completeBg : '#FEF3C7',
+            color: isActive ? forest : '#B45309',
+            fontFamily: FONT,
+          }}>
             {isActive ? 'Active' : 'Pending'}
           </span>
         </div>
 
-        {/* Profile details */}
-        <div className="rounded-2xl border border-gray-200 p-4 mb-4 space-y-3">
-          <Field label="Pickup address" value={profile.address} />
-          <Field label="Language" value={profile.language === 'mn' ? 'Mongolian' : profile.language === 'en' ? 'English' : profile.language} />
-          <Field label="Training interest" value={profile.training_interest ? 'Yes' : 'No'} />
-          <Field label="Trail Pack credits" value={`${credits} credit${credits !== 1 ? 's' : ''}`} />
-          <Field label="Member since" value={profile.created_at ? formatDate(profile.created_at) : null} />
+        {/* Profile details card */}
+        <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <div className="space-y-3">
+            <Field label="Pickup address" value={profile.address} />
+            <Field label="Language" value={profile.language === 'mn' ? 'Mongolian' : profile.language === 'en' ? 'English' : profile.language} />
+            <Field label="Training interest" value={profile.training_interest ? 'Yes' : 'No'} />
+            <Field label="Trail Pack credits" value={`${credits} credit${credits !== 1 ? 's' : ''}`} />
+            <Field label="Member since" value={profile.created_at ? formatDate(profile.created_at) : null} />
+          </div>
         </div>
 
         {/* ── Dogs ── */}
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Dogs</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 3, height: 16, backgroundColor: forest, borderRadius: 2 }} />
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: brown, margin: 0, fontFamily: FONT }}>Dogs</h2>
+        </div>
         {dogs.length === 0 ? (
-          <p className="text-sm text-gray-400 mb-6">No dog on file.</p>
+          <p style={{ fontSize: 14, color: muted, marginBottom: 24, fontFamily: FONT }}>No dog on file.</p>
         ) : (
-          <div className="space-y-2 mb-6">
+          <div className="space-y-2" style={{ marginBottom: 24 }}>
             {dogs.map(dog => (
               <div key={dog.id}>
-                <div className="rounded-2xl border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-1">
+                <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16 }}>
+                  <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
                     <div className="flex items-center gap-2 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{dog.name}</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: brown, margin: 0, fontFamily: FONT }}>{dog.name}</p>
                       <DogStatusBadge status={dog.approval_status} />
                     </div>
                     <button
@@ -300,45 +359,58 @@ export default function ClientDetail() {
                         if (editingDogId === dog.id) { setEditingDogId(null) }
                         else { startEditApproval(dog) }
                       }}
-                      className="text-xs text-green-600 hover:text-green-700 font-medium flex-shrink-0 ml-2"
+                      style={{
+                        fontSize: 12, color: forest, fontWeight: 600,
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        flexShrink: 0, marginLeft: 8, fontFamily: FONT,
+                      }}
                     >
                       {editingDogId === dog.id ? 'Cancel' : 'Edit approval'}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p style={{ fontSize: 12, color: muted, margin: 0, fontFamily: FONT }}>
                     {[dog.breed, dog.sex, dog.age_years ? `${dog.age_years}y` : null, dog.weight_kg ? `${dog.weight_kg}kg` : null]
                       .filter(Boolean).join(' · ')}
                   </p>
                   {dog.approval_status === 'approved_with_conditions' && dog.approval_conditions && (
-                    <p className="text-xs mt-2 bg-amber-50 border border-amber-100 rounded-lg p-2">
-                      <span className="font-medium text-amber-700">Conditions: </span>
-                      <span className="text-gray-700">{dog.approval_conditions}</span>
-                    </p>
+                    <div style={{ marginTop: 8, backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 10, padding: 10 }}>
+                      <p style={{ fontSize: 12, color: brown, margin: 0, fontFamily: FONT }}>
+                        <span style={{ fontWeight: 700, color: '#B45309' }}>Conditions: </span>
+                        {dog.approval_conditions}
+                      </p>
+                    </div>
                   )}
                   {dog.approval_status === 'declined' && dog.decline_reason && (
-                    <p className="text-xs mt-2 bg-red-50 border border-red-100 rounded-lg p-2">
-                      <span className="font-medium text-red-600">Reason: </span>
-                      <span className="text-gray-700">{dog.decline_reason}</span>
-                    </p>
+                    <div style={{ marginTop: 8, backgroundColor: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 10, padding: 10 }}>
+                      <p style={{ fontSize: 12, color: brown, margin: 0, fontFamily: FONT }}>
+                        <span style={{ fontWeight: 700, color: '#B91C1C' }}>Reason: </span>
+                        {dog.decline_reason}
+                      </p>
+                    </div>
                   )}
                 </div>
 
                 {/* Inline approval editor */}
                 {editingDogId === dog.id && (
-                  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 mt-1 space-y-3">
-                    <p className="text-xs font-semibold text-gray-700">Edit approval — {dog.name}</p>
+                  <div style={{ backgroundColor: completeBg, border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16, marginTop: 4 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: brown, margin: '0 0 12px', fontFamily: FONT }}>
+                      Edit approval — {dog.name}
+                    </p>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2" style={{ marginBottom: 12 }}>
                       {APPROVAL_OPTIONS.map(opt => (
                         <button
                           key={opt.value}
                           type="button"
                           onClick={() => setEditStatus(opt.value)}
-                          className={`py-2 px-3 rounded-xl text-xs font-medium border-2 transition-colors text-left ${
-                            editStatus === opt.value
-                              ? 'border-green-500 bg-white text-green-700'
-                              : 'border-gray-200 bg-white text-gray-600'
-                          }`}
+                          style={{
+                            padding: '10px 12px', borderRadius: 12,
+                            fontSize: 12, fontWeight: 600,
+                            textAlign: 'left', cursor: 'pointer',
+                            fontFamily: FONT, backgroundColor: 'white',
+                            border: editStatus === opt.value ? `2px solid ${forest}` : `1px solid ${cardBorder}`,
+                            color: editStatus === opt.value ? forest : muted,
+                          }}
                         >
                           {opt.label}
                         </button>
@@ -346,37 +418,47 @@ export default function ClientDetail() {
                     </div>
 
                     {editStatus === 'approved_with_conditions' && (
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">Conditions (visible to client)</label>
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ display: 'block', fontSize: 12, color: muted, marginBottom: 6, fontFamily: FONT }}>
+                          Conditions (visible to client)
+                        </label>
                         <textarea
                           value={editConditions}
                           onChange={e => setEditConditions(e.target.value)}
                           rows={3}
                           placeholder="e.g. Must remain on leash at all times"
-                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                          style={textareaStyle}
                         />
                       </div>
                     )}
 
                     {editStatus === 'declined' && (
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">Decline reason / internal notes</label>
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ display: 'block', fontSize: 12, color: muted, marginBottom: 6, fontFamily: FONT }}>
+                          Decline reason / internal notes
+                        </label>
                         <textarea
                           value={editDeclineReason}
                           onChange={e => setEditDeclineReason(e.target.value)}
                           rows={3}
                           placeholder="Internal notes on why this dog was declined"
-                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                          style={textareaStyle}
                         />
                       </div>
                     )}
 
-                    {approvalError && <p className="text-xs text-red-500">{approvalError}</p>}
+                    {approvalError && <p style={{ fontSize: 12, color: red, marginBottom: 8, fontFamily: FONT }}>{approvalError}</p>}
 
                     <button
                       onClick={() => saveApproval(dog.id)}
                       disabled={savingApproval}
-                      className="w-full bg-green-600 text-white py-2.5 rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
+                      style={{
+                        width: '100%', backgroundColor: forest, color: 'white',
+                        padding: '14px', borderRadius: 12, border: 'none',
+                        fontSize: 14, fontWeight: 600,
+                        cursor: savingApproval ? 'not-allowed' : 'pointer',
+                        opacity: savingApproval ? 0.5 : 1, fontFamily: FONT,
+                      }}
                     >
                       {savingApproval ? 'Saving…' : 'Save approval'}
                     </button>
@@ -388,58 +470,78 @@ export default function ClientDetail() {
         )}
 
         {/* ── Zone assignment ── */}
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Zone assignment</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 3, height: 16, backgroundColor: forest, borderRadius: 2 }} />
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: brown, margin: 0, fontFamily: FONT }}>Zone assignment</h2>
+        </div>
         {zones.length === 0 ? (
-          <p className="text-sm text-gray-400 mb-6">No zones configured.</p>
+          <p style={{ fontSize: 14, color: muted, marginBottom: 24, fontFamily: FONT }}>No zones configured.</p>
         ) : (
-          <div className="space-y-2 mb-4">
+          <div className="space-y-2" style={{ marginBottom: 12 }}>
             {zones.map(zone => (
               <button
                 key={zone.id}
                 type="button"
                 onClick={() => { setSelectedZone(zone.id); setSaved(false) }}
-                className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${
-                  selectedZone === zone.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
-                }`}
+                style={{
+                  width: '100%', textAlign: 'left', borderRadius: 12, padding: 12,
+                  cursor: 'pointer', fontFamily: FONT,
+                  border: selectedZone === zone.id ? `2px solid ${forest}` : `1px solid ${cardBorder}`,
+                  backgroundColor: selectedZone === zone.id ? completeBg : 'white',
+                }}
               >
-                <span className="block text-sm font-medium text-gray-900">{zone.name}</span>
-                {zone.description && <span className="block text-xs text-gray-500 mt-0.5">{zone.description}</span>}
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: brown, fontFamily: FONT }}>{zone.name}</span>
+                {zone.description && (
+                  <span style={{ display: 'block', fontSize: 12, color: muted, marginTop: 2, fontFamily: FONT }}>{zone.description}</span>
+                )}
               </button>
             ))}
           </div>
         )}
 
-        {zoneError && <p className="text-red-500 text-sm mb-3">{zoneError}</p>}
-        {saved && !zoneChanged && <p className="text-green-600 text-sm mb-3">✓ Zone updated</p>}
+        {zoneError && <p style={{ fontSize: 14, color: red, marginBottom: 12, fontFamily: FONT }}>{zoneError}</p>}
+        {saved && !zoneChanged && <p style={{ fontSize: 14, color: forest, marginBottom: 12, fontFamily: FONT }}>✓ Zone updated</p>}
 
         <button
           onClick={saveZone}
           disabled={!selectedZone || !zoneChanged || saving}
-          className="w-full bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors mb-10"
+          style={{
+            width: '100%', backgroundColor: forest, color: 'white',
+            padding: '14px', borderRadius: 12, border: 'none',
+            fontSize: 14, fontWeight: 600, marginBottom: 32,
+            cursor: (!selectedZone || !zoneChanged || saving) ? 'not-allowed' : 'pointer',
+            opacity: (!selectedZone || !zoneChanged || saving) ? 0.5 : 1,
+            fontFamily: FONT,
+          }}
         >
           {saving ? 'Saving…' : zoneChanged ? 'Save zone change' : 'Zone saved'}
         </button>
 
         {/* ── Booking history ── */}
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Booking history</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 3, height: 16, backgroundColor: forest, borderRadius: 2 }} />
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: brown, margin: 0, fontFamily: FONT }}>Booking history</h2>
+        </div>
         {bookings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center mb-6">
-            <p className="text-sm text-gray-400">No bookings yet.</p>
+          <div style={{ border: `1px dashed ${cardBorder}`, borderRadius: 16, padding: 24, textAlign: 'center', marginBottom: 24 }}>
+            <p style={{ fontSize: 14, color: muted, margin: 0, fontFamily: FONT }}>No bookings yet.</p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden mb-6">
-            {bookings.map(b => (
-              <div key={b.id} className="px-4 py-3">
+          <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, overflow: 'hidden', marginBottom: 24 }}>
+            {bookings.map((b, i) => (
+              <div key={b.id} style={{ padding: '12px 16px', borderTop: i === 0 ? 'none' : `1px solid ${cardBorder}` }}>
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{b.date ? formatDateStr(b.date) : '—'}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p style={{ fontSize: 14, fontWeight: 600, color: brown, margin: 0, fontFamily: FONT }}>
+                      {b.date ? formatDateStr(b.date) : '—'}
+                    </p>
+                    <p style={{ fontSize: 12, color: muted, margin: '2px 0 0', fontFamily: FONT }}>
                       {b.dogName}{b.destination ? ` · ${b.destination}` : ''}
                     </p>
                     {b.creditUsed > 0 ? (
-                      <p className="text-[11px] text-amber-600 mt-0.5">Credit used</p>
+                      <p style={{ fontSize: 11, color: orange, margin: '2px 0 0', fontFamily: FONT }}>Credit used</p>
                     ) : b.amountCharged > 0 ? (
-                      <p className="text-[11px] text-gray-400 mt-0.5">₮{b.amountCharged.toLocaleString()}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: '2px 0 0', fontFamily: FONT }}>₮{b.amountCharged.toLocaleString()}</p>
                     ) : null}
                   </div>
                   <BookingStatusChip status={b.status} />
@@ -452,15 +554,22 @@ export default function ClientDetail() {
         {/* ── Trail Pack credits (per pack) ── */}
         {packCredits.length > 0 && (
           <>
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Trail Pack credits</h2>
-            <div className="space-y-2 mb-6">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={{ width: 3, height: 16, backgroundColor: forest, borderRadius: 2 }} />
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: brown, margin: 0, fontFamily: FONT }}>Trail Pack credits</h2>
+            </div>
+            <div className="space-y-2" style={{ marginBottom: 24 }}>
               {packCredits.map(c => (
-                <div key={c.id} className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 flex items-center justify-between">
-                  <p className="text-sm text-gray-800">
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between"
+                  style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px' }}
+                >
+                  <p style={{ fontSize: 14, color: brown, margin: 0, fontFamily: FONT }}>
                     {c.creditsRemaining} credit{c.creditsRemaining !== 1 ? 's' : ''} remaining
                   </p>
                   {c.expiresAt && (
-                    <p className="text-xs text-gray-500">
+                    <p style={{ fontSize: 12, color: muted, margin: 0, fontFamily: FONT }}>
                       Expires {new Date(c.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                   )}
@@ -480,32 +589,48 @@ export default function ClientDetail() {
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-sm text-gray-800">{value || <span className="text-gray-400">—</span>}</p>
+      <p style={{ fontSize: 11, color: muted, margin: '0 0 2px', fontFamily: FONT }}>{label}</p>
+      <p style={{ fontSize: 14, color: brown, margin: 0, fontFamily: FONT }}>
+        {value || <span style={{ color: muted }}>—</span>}
+      </p>
     </div>
   )
 }
 
 function DogStatusBadge({ status }: { status: string | null }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    approved:                 { label: 'Approved',    cls: 'bg-green-100 text-green-700' },
-    approved_with_conditions: { label: 'Conditions',  cls: 'bg-amber-100 text-amber-700' },
-    pending:                  { label: 'Pending',     cls: 'bg-gray-100 text-gray-600' },
-    declined:                 { label: 'Declined',    cls: 'bg-red-100 text-red-700' },
+  const map: Record<string, { label: string; bg: string; color: string }> = {
+    approved:                 { label: 'Approved',   bg: completeBg,  color: forest },
+    approved_with_conditions: { label: 'Conditions', bg: '#FEF3C7',   color: '#B45309' },
+    pending:                  { label: 'Pending',    bg: badgeBg,     color: muted },
+    declined:                 { label: 'Declined',   bg: '#FEE2E2',   color: '#B91C1C' },
   }
-  const s = map[status ?? ''] ?? { label: status ?? '—', cls: 'bg-gray-100 text-gray-600' }
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${s.cls}`}>{s.label}</span>
+  const s = map[status ?? ''] ?? { label: status ?? '—', bg: badgeBg, color: muted }
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      borderRadius: 999, padding: '2px 8px',
+      fontSize: 11, fontWeight: 600, fontFamily: FONT,
+      backgroundColor: s.bg, color: s.color,
+    }}>
+      {s.label}
+    </span>
+  )
 }
 
 function BookingStatusChip({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    confirmed: { label: 'Confirmed', cls: 'bg-green-100 text-green-700' },
-    cancelled: { label: 'Cancelled', cls: 'bg-red-100 text-red-600' },
-    no_show:   { label: 'No-show',   cls: 'bg-red-100 text-red-600' },
+  const map: Record<string, { label: string; bg: string; color: string }> = {
+    confirmed: { label: 'Confirmed', bg: completeBg,  color: forest },
+    cancelled: { label: 'Cancelled', bg: '#FEE2E2',   color: '#B91C1C' },
+    no_show:   { label: 'No-show',   bg: '#FEE2E2',   color: '#B91C1C' },
   }
-  const s = map[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600' }
+  const s = map[status] ?? { label: status, bg: badgeBg, color: muted }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium flex-shrink-0 ml-3 ${s.cls}`}>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      borderRadius: 999, padding: '2px 8px',
+      fontSize: 11, fontWeight: 600, flexShrink: 0, marginLeft: 12, fontFamily: FONT,
+      backgroundColor: s.bg, color: s.color,
+    }}>
       {s.label}
     </span>
   )
