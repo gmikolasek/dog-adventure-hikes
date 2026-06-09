@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+const FONT = "'Noto Sans', system-ui, sans-serif"
+const forest = '#26452B'
+const moss = '#4D6B46'
+const brown = '#3B2A1F'
+const muted = '#8A7E72'
+const cardBorder = '#E8E2D9'
+const bg = '#F5F0E8'
+const badgeBg = '#EEE9E0'
+const completeBg = '#E8F0E5'
+const red = '#ef4444'
+
 type Dog = {
   id: string
   owner_id: string
@@ -21,6 +32,7 @@ type Dog = {
   known_aggression: boolean | null
   airtag_confirmed: boolean | null
   ecollar: boolean | null
+  photo_url: string | null
 }
 
 type Owner = {
@@ -81,36 +93,52 @@ export default function ApprovalQueue() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: bg, fontFamily: FONT }}>
+        <p style={{ fontSize: 14, color: muted }}>Loading…</p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
+    <main className="min-h-screen px-6 py-10" style={{ backgroundColor: bg, fontFamily: FONT }}>
       <div className="w-full max-w-sm mx-auto">
 
-        <button
-          onClick={() => router.push('/staff')}
-          className="text-sm text-gray-500 hover:text-gray-700 mb-6"
-        >
-          ← Dashboard
-        </button>
+        {/* Back button */}
+        <div style={{ marginBottom: 24 }}>
+          <button
+            onClick={() => router.push('/staff')}
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              backgroundColor: cardBorder, border: 'none',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 12L6 8l4-4" stroke={forest} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Dog approvals</h1>
-          <p className="text-gray-500 mt-1 text-sm">
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: brown, margin: 0 }}>Dog approvals</h1>
+          <p style={{ fontSize: 14, color: muted, margin: '4px 0 0' }}>
             {dogs.length} dog{dogs.length !== 1 ? 's' : ''} awaiting review
           </p>
         </div>
 
         {dogs.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-              <span className="text-3xl">✓</span>
+          <div style={{ textAlign: 'center', padding: '64px 0' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 64, height: 64, borderRadius: '50%',
+              backgroundColor: completeBg, marginBottom: 16,
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke={forest} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
-            <p className="text-sm text-gray-500">All caught up — no pending dogs.</p>
+            <p style={{ fontSize: 14, color: muted }}>All caught up — no pending dogs.</p>
           </div>
         ) : (
           <div className="space-y-5">
@@ -133,9 +161,9 @@ export default function ApprovalQueue() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-gray-50 px-3 py-2">
-      <p className="text-[11px] text-gray-400">{label}</p>
-      <p className="text-sm font-medium text-gray-800">{value}</p>
+    <div style={{ backgroundColor: badgeBg, borderRadius: 10, padding: '8px 12px' }}>
+      <p style={{ fontSize: 11, color: muted, margin: '0 0 2px', fontFamily: FONT }}>{label}</p>
+      <p style={{ fontSize: 14, fontWeight: 600, color: brown, margin: 0, fontFamily: FONT }}>{value}</p>
     </div>
   )
 }
@@ -195,38 +223,66 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
     onResolved(dog.id)
   }
 
+  const textareaStyle = {
+    width: '100%',
+    borderRadius: 10,
+    border: `1px solid ${cardBorder}`,
+    padding: '12px',
+    fontSize: 14,
+    color: '#171717',
+    backgroundColor: 'white',
+    WebkitTextFillColor: '#171717' as const,
+    outline: 'none',
+    fontFamily: FONT,
+    boxSizing: 'border-box' as const,
+    resize: 'none' as const,
+    marginBottom: 12,
+    display: 'block',
+  }
+
   return (
-    <div className="rounded-2xl border border-gray-200 p-5">
+    <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16 }}>
 
       {/* Dog header */}
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between" style={{ marginBottom: 12 }}>
         <div>
-          <h3 className="text-base font-semibold text-gray-900">{dog.name}</h3>
-          <p className="text-xs text-gray-500">
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: brown, margin: 0, fontFamily: FONT }}>{dog.name}</h3>
+          <p style={{ fontSize: 12, color: muted, margin: '2px 0 0', fontFamily: FONT }}>
             {[dog.breed, dog.sex, dog.age_years ? `${dog.age_years}y` : null, dog.weight_kg ? `${dog.weight_kg}kg` : null]
               .filter(Boolean).join(' · ')}
           </p>
         </div>
-        <span className="text-2xl">🐕</span>
+        {dog.photo_url ? (
+          <div style={{
+            width: 40, height: 40, borderRadius: '50%',
+            backgroundImage: `url(${dog.photo_url})`,
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            flexShrink: 0,
+          }} />
+        ) : (
+          <svg width="28" height="28" viewBox="0 0 24 24" fill={moss} style={{ flexShrink: 0 }}>
+            <path d="M4.5 11c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm15 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-1.5 1.5c0-1.1-.9-2-2-2h-1c-.36 0-.69.1-.98.27C13.4 9.7 12.74 9.5 12 9.5s-1.4.2-2.02.77c-.29-.17-.62-.27-.98-.27H8c-1.1 0-2 .9-2 2v1c0 2.21 1.79 4 4 4h4c2.21 0 4-1.79 4-4v-1zm-9.5-5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm5 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
+          </svg>
+        )}
       </div>
 
       {/* Owner */}
-      <div className="rounded-xl bg-gray-50 p-3 mb-4">
-        <p className="text-xs text-gray-400 mb-0.5">Owner</p>
-        <p className="text-sm font-medium text-gray-800">{owner?.name ?? 'Unknown'}</p>
-        {owner?.phone && <p className="text-xs text-gray-500">{owner.phone}</p>}
-        {owner?.address && <p className="text-xs text-gray-500 mt-1">{owner.address}</p>}
+      <div style={{ backgroundColor: badgeBg, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+        <p style={{ fontSize: 11, color: muted, margin: '0 0 2px', fontFamily: FONT }}>Owner</p>
+        <p style={{ fontSize: 14, fontWeight: 600, color: brown, margin: 0, fontFamily: FONT }}>{owner?.name ?? 'Unknown'}</p>
+        {owner?.phone && <p style={{ fontSize: 12, color: muted, margin: '2px 0 0', fontFamily: FONT }}>{owner.phone}</p>}
+        {owner?.address && <p style={{ fontSize: 12, color: muted, margin: '4px 0 0', fontFamily: FONT }}>{owner.address}</p>}
       </div>
 
       {/* Scores */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-3 gap-2" style={{ marginBottom: 16 }}>
         <Stat label="Recall" value={dog.recall_score ? `${dog.recall_score}/5` : '—'} />
         <Stat label="Car" value={dog.car_score ? `${dog.car_score}/5` : '—'} />
         <Stat label="Social" value={dog.social_score ? `${dog.social_score}/5` : '—'} />
       </div>
 
       {/* Flags */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
+      <div className="flex flex-wrap gap-1.5" style={{ marginBottom: 16 }}>
         <Flag ok={dog.airtag_confirmed === true} label={dog.airtag_confirmed ? 'AirTag ✓' : 'No AirTag'} />
         {dog.ecollar && <Flag ok label="E-collar" />}
         {dog.neutered && <Flag ok label="Neutered" />}
@@ -235,44 +291,58 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
 
       {/* Notes */}
       {dog.disposition_notes && (
-        <p className="text-xs text-gray-600 leading-relaxed mb-2">
-          <span className="text-gray-400">Disposition: </span>{dog.disposition_notes}
+        <p style={{ fontSize: 12, color: brown, lineHeight: 1.5, margin: '0 0 8px', fontFamily: FONT }}>
+          <span style={{ color: muted }}>Disposition: </span>{dog.disposition_notes}
         </p>
       )}
       {dog.other_notes && (
-        <p className="text-xs text-gray-600 leading-relaxed mb-4">
-          <span className="text-gray-400">Other: </span>{dog.other_notes}
+        <p style={{ fontSize: 12, color: brown, lineHeight: 1.5, margin: '0 0 16px', fontFamily: FONT }}>
+          <span style={{ color: muted }}>Other: </span>{dog.other_notes}
         </p>
       )}
 
-      {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+      {error && <p style={{ fontSize: 12, color: red, marginBottom: 12, fontFamily: FONT }}>{error}</p>}
 
       {/* Resolved state — show badge + zone assignment CTA */}
       {resolvedStatus !== null && (
-        <div className="pt-1">
-          <div className="flex items-center gap-2 mb-3">
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-              resolvedStatus === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-            }`}>
+        <div style={{ paddingTop: 4 }}>
+          <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center',
+              borderRadius: 999, padding: '3px 10px',
+              fontSize: 12, fontWeight: 600,
+              backgroundColor: resolvedStatus === 'approved' ? completeBg : '#FEF3C7',
+              color: resolvedStatus === 'approved' ? forest : '#B45309',
+            }}>
               {resolvedStatus === 'approved' ? 'Approved' : 'Approved with conditions'}
             </span>
           </div>
           <button
             onClick={() => router.push(`/staff/zones/${dog.owner_id}?dog=${dog.id}`)}
-            className="w-full bg-green-600 text-white py-2.5 rounded-xl font-medium text-sm hover:bg-green-700 transition-colors"
+            style={{
+              width: '100%', backgroundColor: forest, color: 'white',
+              padding: '12px', borderRadius: 12, border: 'none',
+              fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: FONT,
+            }}
           >
             Assign zone →
           </button>
         </div>
       )}
 
-      {/* Actions */}
+      {/* Actions — idle */}
       {resolvedStatus === null && mode === 'idle' && (
-        <div className="space-y-2 pt-1">
+        <div className="space-y-2" style={{ paddingTop: 4 }}>
           <button
             onClick={() => approve('approved')}
             disabled={busy}
-            className="w-full bg-green-600 text-white py-2.5 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+            style={{
+              width: '100%', backgroundColor: forest, color: 'white',
+              padding: '12px', borderRadius: 12, border: 'none',
+              fontSize: 14, fontWeight: 600,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              opacity: busy ? 0.5 : 1, fontFamily: FONT,
+            }}
           >
             {busy ? 'Working…' : 'Approve'}
           </button>
@@ -280,14 +350,26 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
             <button
               onClick={() => setMode('conditions')}
               disabled={busy}
-              className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              style={{
+                flex: 1, padding: '10px', borderRadius: 12,
+                border: `1px solid ${cardBorder}`, backgroundColor: 'white',
+                fontSize: 13, fontWeight: 600, color: brown,
+                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: busy ? 0.5 : 1, fontFamily: FONT,
+              }}
             >
               Approve with conditions
             </button>
             <button
               onClick={() => setMode('decline')}
               disabled={busy}
-              className="flex-1 py-2.5 rounded-xl border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+              style={{
+                flex: 1, padding: '10px', borderRadius: 12,
+                border: `1px solid ${red}`, backgroundColor: 'white',
+                fontSize: 13, fontWeight: 600, color: red,
+                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: busy ? 0.5 : 1, fontFamily: FONT,
+              }}
             >
               Decline
             </button>
@@ -295,28 +377,43 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
         </div>
       )}
 
+      {/* Actions — conditions */}
       {resolvedStatus === null && mode === 'conditions' && (
-        <div className="pt-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Conditions for approval</label>
+        <div style={{ paddingTop: 4 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: brown, marginBottom: 8, fontFamily: FONT }}>
+            Conditions for approval
+          </label>
           <textarea
             value={conditions}
             onChange={e => setConditions(e.target.value)}
             placeholder="e.g. Must wear e-collar; keep on lead for first hike; no off-leash until reassessed."
             rows={3}
-            className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none mb-3"
+            style={textareaStyle}
           />
           <div className="flex gap-2">
             <button
               onClick={() => { setMode('idle'); setConditions('') }}
               disabled={busy}
-              className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-600 disabled:opacity-50"
+              style={{
+                flex: 1, padding: '10px', borderRadius: 12,
+                border: `1px solid ${cardBorder}`, backgroundColor: 'white',
+                fontSize: 13, fontWeight: 600, color: muted,
+                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: busy ? 0.5 : 1, fontFamily: FONT,
+              }}
             >
               Cancel
             </button>
             <button
               onClick={() => approve('approved_with_conditions')}
               disabled={busy || conditions.trim().length < 3}
-              className="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+              style={{
+                flex: 1, backgroundColor: forest, color: 'white',
+                padding: '10px', borderRadius: 12, border: 'none',
+                fontSize: 13, fontWeight: 600,
+                cursor: (busy || conditions.trim().length < 3) ? 'not-allowed' : 'pointer',
+                opacity: (busy || conditions.trim().length < 3) ? 0.5 : 1, fontFamily: FONT,
+              }}
             >
               {busy ? 'Working…' : 'Approve & assign zone'}
             </button>
@@ -324,28 +421,43 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
         </div>
       )}
 
+      {/* Actions — decline */}
       {resolvedStatus === null && mode === 'decline' && (
-        <div className="pt-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Reason for declining</label>
+        <div style={{ paddingTop: 4 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: brown, marginBottom: 8, fontFamily: FONT }}>
+            Reason for declining
+          </label>
           <textarea
             value={reason}
             onChange={e => setReason(e.target.value)}
             placeholder="e.g. No GPS tracker; reported aggression unsuitable for group hikes."
             rows={3}
-            className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none mb-3"
+            style={textareaStyle}
           />
           <div className="flex gap-2">
             <button
               onClick={() => { setMode('idle'); setReason('') }}
               disabled={busy}
-              className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-600 disabled:opacity-50"
+              style={{
+                flex: 1, padding: '10px', borderRadius: 12,
+                border: `1px solid ${cardBorder}`, backgroundColor: 'white',
+                fontSize: 13, fontWeight: 600, color: muted,
+                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: busy ? 0.5 : 1, fontFamily: FONT,
+              }}
             >
               Cancel
             </button>
             <button
               onClick={decline}
               disabled={busy || reason.trim().length < 3}
-              className="flex-1 bg-red-600 text-white py-2.5 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-red-700 transition-colors"
+              style={{
+                flex: 1, backgroundColor: red, color: 'white',
+                padding: '10px', borderRadius: 12, border: 'none',
+                fontSize: 13, fontWeight: 600,
+                cursor: (busy || reason.trim().length < 3) ? 'not-allowed' : 'pointer',
+                opacity: (busy || reason.trim().length < 3) ? 0.5 : 1, fontFamily: FONT,
+              }}
             >
               {busy ? 'Working…' : 'Decline dog'}
             </button>
@@ -359,11 +471,13 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
 
 function Flag({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-        ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-      }`}
-    >
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '2px 8px', borderRadius: 999,
+      fontSize: 11, fontWeight: 600, fontFamily: FONT,
+      backgroundColor: ok ? completeBg : '#FEE2E2',
+      color: ok ? forest : '#B91C1C',
+    }}>
       {label}
     </span>
   )
