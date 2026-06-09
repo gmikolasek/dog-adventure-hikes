@@ -14,7 +14,6 @@ const NOTIF_BUTTONS = [
   { key: '15min',   label: '15 min',     message: 'Your dog will be dropped off in approximately 15 minutes. 🐾' },
   { key: '5min',    label: '5 min',      message: 'Your dog will be dropped off in approximately 5 minutes! 🐾' },
   { key: 'arrived', label: 'Arrived',    message: 'We have arrived! Please come take your dog. 🐾' },
-  { key: 'onway',   label: 'On our way', message: 'We are on our way to pick up your dog! 🐾' },
 ] as const
 
 // ---- Icons ------------------------------------------------------------------
