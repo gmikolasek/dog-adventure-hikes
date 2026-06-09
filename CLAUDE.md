@@ -224,7 +224,8 @@ style={{
 | `amount_charged` | integer | In MNT (₮) |
 | `credit_used` | integer | Credits applied |
 | `dropped_off_at` | timestamptz | Set during hike run |
-| `pickup_order` | integer | **Added this session** — 0-based index for draggable pickup order on hike detail page |
+| `pickup_order` | integer | 0-based index for draggable pickup order on run page |
+| `dropoff_order` | integer | 0-based index for draggable drop-off order on run page — **migration required** |
 | `created_at` | timestamptz | |
 
 ### `trail_pack_credits`
@@ -253,11 +254,12 @@ style={{
 - `cancel_booking(booking_id uuid)` — handles cancellation window logic (5pm ULT cutoff); sets status to `'cancelled'` and credits appropriately
 
 ### Migrations applied
-- `pickup_order integer` column added to `bookings` — run manually in Supabase. Hike detail page drag-to-reorder is working correctly.
+- `pickup_order integer` column added to `bookings` — run manually in Supabase.
 
 ### Migrations required (not yet applied)
 - `ALTER TABLE users ADD COLUMN contract_accepted_at timestamptz;`
 - `ALTER TABLE users ADD COLUMN contract_version text;`
+- `ALTER TABLE bookings ADD COLUMN dropoff_order integer;`
 
 ---
 
@@ -269,6 +271,8 @@ style={{
 app/
 ├── page.tsx                        Landing page (hero image, logo, CTA buttons)
 ├── login/page.tsx                  Phone OTP auth → getUserState() → landingRoute()
+├── api/
+│   └── notify/route.ts             POST — send WhatsApp message to owner (staff auth required)
 ├── client/
 │   ├── page.tsx                    Redirect shim → /client/home
 │   ├── home/page.tsx               Client dashboard
@@ -342,7 +346,7 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 | Staff hikes list (`/staff/hikes`) | ✅ Individual cards, Today badge, dog thumbnails |
 | Staff hike detail (`/staff/hikes/[date]`) | ✅ Draggable cards, dog photos, notification placeholder |
 | Staff zones (`/staff/zones/[userId]`) | ✅ Back button → /staff/clients |
-| Staff hike run (`/staff/hikes/[date]/run`) | ✅ Draggable pickup queue, hero card, brand tokens |
+| Staff hike run (`/staff/hikes/[date]/run`) | ✅ Draggable pickup + dropoff queues, per-dog WhatsApp buttons, "Hiking finished" broadcast |
 | Staff revenue (`/staff/revenue`) | ✅ Brand tokens applied |
 | Staff exceptions (`/staff/exceptions`) | ✅ Real DB query + brand token polish |
 | Client dashboard (`/client/home`) | ✅ Brand tokens applied |
@@ -365,13 +369,15 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 
 2. **Payment confirmation screen** — Post-payment success screen after booking completes has no brand token styling.
 
-3. **Notification sending deferred** — "ETA for pickup / ETA for drop-off" buttons on both the pre-hike and run pages are placeholders (`cursor: not-allowed`, "Coming soon" note). Implementation deferred.
+3. **`proxy.ts` auth not enforced** — Both branches of the proxy return `NextResponse.next()`. Auth is enforced client-side only. Acceptable for now; harden before public launch.
 
-4. **`proxy.ts` auth not enforced** — Both branches of the proxy return `NextResponse.next()`. Auth is enforced client-side only. Acceptable for now; harden before public launch.
+4. **`contract_accepted_at` / `contract_version` columns not yet migrated** — Must run `ALTER TABLE users ADD COLUMN contract_accepted_at timestamptz; ALTER TABLE users ADD COLUMN contract_version text;` in Supabase before onboarding contract step will work.
 
-5. **`contract_accepted_at` / `contract_version` columns not yet migrated** — Must run `ALTER TABLE users ADD COLUMN contract_accepted_at timestamptz; ALTER TABLE users ADD COLUMN contract_version text;` in Supabase before onboarding contract step will work.
+5. **`dropoff_order` column not yet migrated** — Must run `ALTER TABLE bookings ADD COLUMN dropoff_order integer;` in Supabase before drop-off drag reorder will persist.
 
-6. **`cancel_booking` UTC offset unverified** — Function uses UTC+8 for 5pm ULT cutoff; confirm Supabase instance timezone matches Ulaanbaatar (UTC+8) or the cancellation window logic will be wrong.
+6. **WHATSAPP_ACCESS_TOKEN expires every 24hrs in dev** — Meta issues short-lived tokens during development. Must be replaced with a permanent system user token before launch. Set `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` in `.env.local`.
+
+7. **`cancel_booking` UTC offset unverified** — Function uses UTC+8 for 5pm ULT cutoff; confirm Supabase instance timezone matches Ulaanbaatar (UTC+8) or the cancellation window logic will be wrong.
 
 ### Known working
 - Drag reorder on both pre-hike (`/staff/hikes/[date]`) and run (`/staff/hikes/[date]/run`) pages saves `pickup_order` to Supabase correctly
@@ -395,6 +401,7 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 - Back button on zones page going to approvals — fixed to `/staff/clients`
 - Client detail status badge stale after inline approval edit — `isActive` derived from `dogs` state
 - Gana 2 accidental pickup — nulled via `UPDATE bookings SET picked_up_at = NULL WHERE dog_id = (SELECT id FROM dogs WHERE name = 'Gana 2') AND picked_up_at IS NOT NULL`
+- Notification buttons deferred — replaced placeholder with real WhatsApp per-dog notification buttons (30 min / 15 min / 5 min / Arrived / On our way) on pickup and dropoff cards, plus "Hiking finished" broadcast button on Hike tab; implemented via `/api/notify` route + WhatsApp Cloud API
 
 ---
 

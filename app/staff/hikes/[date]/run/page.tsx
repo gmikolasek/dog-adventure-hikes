@@ -9,21 +9,20 @@ import { uploadHikePhoto } from '@/lib/photos'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
 
+const NOTIF_BUTTONS = [
+  { key: '30min',   label: '30 min',     message: 'Your dog will be dropped off in approximately 30 minutes. 🐾' },
+  { key: '15min',   label: '15 min',     message: 'Your dog will be dropped off in approximately 15 minutes. 🐾' },
+  { key: '5min',    label: '5 min',      message: 'Your dog will be dropped off in approximately 5 minutes! 🐾' },
+  { key: 'arrived', label: 'Arrived',    message: 'We have arrived! Please come take your dog. 🐾' },
+  { key: 'onway',   label: 'On our way', message: 'We are on our way to pick up your dog! 🐾' },
+] as const
+
 // ---- Icons ------------------------------------------------------------------
 
 function BackArrow() {
   return (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#26452B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="15 18 9 12 15 6" />
-    </svg>
-  )
-}
-
-function BellIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4D6B46" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   )
 }
@@ -84,6 +83,7 @@ type RunBooking = {
   zoneId: string | null
   zoneName: string | null
   pickupOrder: number | null
+  dropoffOrder: number | null
 }
 
 type RunMode = 'pickup' | 'hike' | 'dropoff'
@@ -101,6 +101,15 @@ function sortByPickupOrder(a: RunBooking, b: RunBooking): number {
   if (a.pickupOrder === null) return 1
   if (b.pickupOrder === null) return -1
   return a.pickupOrder - b.pickupOrder
+}
+
+function sortByDropoffOrder(a: RunBooking, b: RunBooking): number {
+  const aOrd = a.dropoffOrder ?? a.pickupOrder
+  const bOrd = b.dropoffOrder ?? b.pickupOrder
+  if (aOrd === null && bOrd === null) return 0
+  if (aOrd === null) return 1
+  if (bOrd === null) return -1
+  return aOrd - bOrd
 }
 
 function deriveMode(bookings: RunBooking[]): RunMode {
@@ -148,6 +157,15 @@ export default function RunPage() {
   const [addDogBusy, setAddDogBusy] = useState(false)
   const [addDogError, setAddDogError] = useState('')
   const [savingOrder, setSavingOrder] = useState(false)
+  const [savingDropoffOrder, setSavingDropoffOrder] = useState(false)
+
+  // Hiking finished notification
+  const [hikingFinishedBusy, setHikingFinishedBusy] = useState(false)
+  const [hikingFinishedCount, setHikingFinishedCount] = useState<number | null>(null)
+
+  // Per-dog notification state: bookingId → array of sent button keys
+  const [sentNotifs, setSentNotifs] = useState<Record<string, string[]>>({})
+  const [notifBusy, setNotifBusy] = useState<Record<string, string | null>>({})
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -169,7 +187,7 @@ export default function RunPage() {
 
     const { data: bRows } = await supabase
       .from('bookings')
-      .select('id, dog_id, owner_id, status, pickup_method, dropoff_method, picked_up_at, dropped_off_at, pickup_order')
+      .select('id, dog_id, owner_id, status, pickup_method, dropoff_method, picked_up_at, dropped_off_at, pickup_order, dropoff_order')
       .eq('hike_day_id', dayRow.id)
       .in('status', ['confirmed', 'no_show'])
 
@@ -213,6 +231,7 @@ export default function RunPage() {
         zoneId,
         zoneName: zoneId ? (zoneNameById[zoneId] ?? null) : null,
         pickupOrder: b.pickup_order ?? null,
+        dropoffOrder: b.dropoff_order ?? null,
       }
     }).sort(sortByPickupOrder)
 
@@ -332,6 +351,71 @@ export default function RunPage() {
     setSavingOrder(false)
   }
 
+  async function onDropoffDragEnd(result: DropResult) {
+    if (!result.destination || result.destination.index === result.source.index) return
+    const pending = bookings
+      .filter(b => b.status !== 'no_show' && !!b.pickedUpAt && !b.droppedOffAt)
+      .sort(sortByDropoffOrder)
+    const rest = bookings.filter(b => !pending.find(p => p.id === b.id))
+    const items = Array.from(pending)
+    const [moved] = items.splice(result.source.index, 1)
+    items.splice(result.destination.index, 0, moved)
+    setBookings([...items, ...rest])
+    setSavingDropoffOrder(true)
+    await Promise.all(
+      items.map((b, i) => supabase.from('bookings').update({ dropoff_order: i }).eq('id', b.id))
+    )
+    setSavingDropoffOrder(false)
+  }
+
+  async function sendNotif(bookingId: string, key: string, phone: string, message: string) {
+    setNotifBusy(prev => ({ ...prev, [bookingId]: key }))
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ phone, message, hikeDayId }),
+        })
+      }
+    } catch { /* mark sent regardless */ }
+    setSentNotifs(prev => ({ ...prev, [bookingId]: [...(prev[bookingId] ?? []), key] }))
+    setNotifBusy(prev => ({ ...prev, [bookingId]: null }))
+  }
+
+  async function sendHikingFinished() {
+    setHikingFinishedBusy(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setHikingFinishedBusy(false); return }
+
+    const activeBookings = bookings.filter(b => b.status !== 'no_show')
+    const phones = [...new Set(activeBookings.map(b => b.ownerPhone).filter(Boolean) as string[])]
+
+    for (const phone of phones) {
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            phone,
+            message: 'Hiking is finished! We are on our way home. 🐾 Your dog had a great time today!',
+            hikeDayId,
+          }),
+        })
+      } catch { /* continue */ }
+    }
+
+    setHikingFinishedCount(phones.length)
+    setHikingFinishedBusy(false)
+  }
+
   async function handleAddDogSearch(q: string) {
     setAddDogQuery(q)
     setAddDogSelected(null)
@@ -413,6 +497,7 @@ export default function RunPage() {
       zoneId: ownerRow?.zone_id ?? null,
       zoneName,
       pickupOrder: null,
+      dropoffOrder: null,
     }
     setBookings(prev => {
       const updated = [...prev, newEntry].sort(sortByPickupOrder)
@@ -434,20 +519,23 @@ export default function RunPage() {
   const formattedDate = (() => { try { return formatFull(date) } catch { return date } })()
   const activeBookings = bookings.filter(b => b.status !== 'no_show')
   const onHike = activeBookings.filter(b => b.pickedUpAt && !b.droppedOffAt)
-  const droppedOff = activeBookings.filter(b => b.droppedOffAt)
   const noShows = bookings.filter(b => b.status === 'no_show')
 
   const pendingDogs = activeBookings.filter(b => !b.pickedUpAt)
   const pickedUpDogs = activeBookings.filter(b => b.pickedUpAt)
-  const dropoffQueue = [...pickedUpDogs].reverse()
+  const dropoffPending = activeBookings.filter(b => !!b.pickedUpAt && !b.droppedOffAt).sort(sortByDropoffOrder)
+  const droppedOffDogs = activeBookings.filter(b => !!b.droppedOffAt)
 
   const nextPickup = pendingDogs[0] ?? null
-  const nextDropoff = dropoffQueue.find(b => !b.droppedOffAt)
+  const nextDropoff = dropoffPending[0] ?? null
 
   const allDroppedOff = activeBookings.length > 0 && activeBookings.every(b => b.droppedOffAt)
 
   const modeLabel = mode === 'pickup' ? 'Pickup' : mode === 'hike' ? 'Hiking' : 'Drop-off'
   const headerTitle = mode === 'pickup' ? 'Pickup' : mode === 'hike' ? 'On the hike' : 'Drop-off'
+
+  // Suppress unused variable warning
+  void nextPickup
 
   return (
     <main style={{ minHeight: '100svh', backgroundColor: '#F5F0E8', fontFamily: FONT, display: 'flex', flexDirection: 'column' }}>
@@ -512,7 +600,6 @@ export default function RunPage() {
                 ✕
               </button>
             </div>
-
             <input
               type="text"
               placeholder="Search by dog name…"
@@ -521,7 +608,6 @@ export default function RunPage() {
               autoFocus
               style={{ width: '100%', border: '1px solid #E8E2D9', borderRadius: 10, padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box', marginBottom: 12 }}
             />
-
             {!addDogSelected && addDogResults.length > 0 && (
               <div style={{ border: '1px solid #E8E2D9', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
                 {addDogResults.map((r, i) => (
@@ -536,11 +622,9 @@ export default function RunPage() {
                 ))}
               </div>
             )}
-
             {addDogQuery.length >= 2 && !addDogSelected && addDogResults.length === 0 && (
               <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT, marginBottom: 12 }}>No approved dogs found.</p>
             )}
-
             {addDogSelected && (
               <>
                 <div style={{ border: '1px solid #E8E2D9', borderRadius: 12, backgroundColor: '#E8F0E5', padding: '12px 16px', marginBottom: 16 }}>
@@ -554,7 +638,6 @@ export default function RunPage() {
                     </button>
                   </div>
                 </div>
-
                 <div style={{ marginBottom: 20 }}>
                   <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, marginBottom: 8 }}>Pickup method</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -576,9 +659,7 @@ export default function RunPage() {
                 </div>
               </>
             )}
-
             {addDogError && <p style={{ fontSize: 12, color: '#ef4444', fontFamily: FONT, marginBottom: 12 }}>{addDogError}</p>}
-
             <button
               onClick={handleAddDog}
               disabled={!addDogSelected || addDogBusy}
@@ -653,14 +734,12 @@ export default function RunPage() {
       {mode === 'pickup' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 40px' }}>
 
-          {/* Reorder hint */}
           {pendingDogs.length > 1 && (
             <p style={{ fontSize: 12, color: '#8A7E72', fontStyle: 'italic', fontFamily: FONT, textAlign: 'right', marginBottom: 8 }}>
               {savingOrder ? 'Saving…' : 'Hold to reorder'}
             </p>
           )}
 
-          {/* Draggable pending dogs — index 0 renders as hero card */}
           <DragDropContext onDragEnd={onPickupDragEnd}>
             <Droppable droppableId="pickup-queue">
               {(provided) => (
@@ -712,10 +791,17 @@ export default function RunPage() {
                                   )}
                                 </div>
                               </div>
+                              <NotifRow
+                                booking={b}
+                                sentKeys={sentNotifs[b.id] ?? []}
+                                busyKey={notifBusy[b.id] ?? null}
+                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                dark
+                              />
                               <button
                                 onClick={() => confirmPickup(b.id)}
                                 disabled={busy === b.id}
-                                style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', marginBottom: 8, opacity: busy === b.id ? 0.5 : 1 }}
+                                style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', marginTop: 12, marginBottom: 8, opacity: busy === b.id ? 0.5 : 1 }}
                               >
                                 {busy === b.id ? 'Saving…' : 'Confirm pickup ✓'}
                               </button>
@@ -727,7 +813,7 @@ export default function RunPage() {
                               </button>
                             </div>
                           ) : (
-                            /* Remaining card — drag handle only, no action buttons */
+                            /* Regular card */
                             <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 {b.dogPhotoUrl ? (
@@ -755,6 +841,13 @@ export default function RunPage() {
                                   <DragHandleIcon />
                                 </div>
                               </div>
+                              <NotifRow
+                                booking={b}
+                                sentKeys={sentNotifs[b.id] ?? []}
+                                busyKey={notifBusy[b.id] ?? null}
+                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                dark={false}
+                              />
                             </div>
                           )}
                         </div>
@@ -815,30 +908,12 @@ export default function RunPage() {
             </div>
           ))}
 
-          {/* All picked up */}
           {pendingDogs.length === 0 && noShows.length === 0 && (
             <div style={{ textAlign: 'center', padding: '24px 0' }}>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#26452B', fontFamily: FONT, margin: '0 0 4px' }}>All dogs picked up!</p>
               <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>Switching to hike mode…</p>
             </div>
           )}
-
-          {/* Notification placeholder */}
-          <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginTop: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <BellIcon />
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: 0 }}>Notify clients</p>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <button style={{ flex: 1, backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 10, padding: '8px 0', fontSize: 13, fontFamily: FONT, border: 'none', cursor: 'not-allowed' }}>
-                ETA for pickup
-              </button>
-              <button style={{ flex: 1, backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 10, padding: '8px 0', fontSize: 13, fontFamily: FONT, border: 'none', cursor: 'not-allowed' }}>
-                ETA for drop-off
-              </button>
-            </div>
-            <p style={{ fontSize: 12, color: '#8A7E72', fontStyle: 'italic', fontFamily: FONT, margin: 0, textAlign: 'center' }}>Coming soon</p>
-          </div>
 
         </div>
       )}
@@ -857,7 +932,7 @@ export default function RunPage() {
             <p style={{ fontSize: 14, color: '#26452B', fontWeight: 600, fontFamily: FONT, margin: '0 0 28px' }}>{destination}</p>
           )}
 
-          <div style={{ width: '100%', marginBottom: 32 }}>
+          <div style={{ width: '100%', marginBottom: 24 }}>
             {onHike.map(b => (
               <div key={b.id} style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
                 {b.dogPhotoUrl ? (
@@ -891,10 +966,30 @@ export default function RunPage() {
 
           <button
             onClick={() => setMode('dropoff')}
-            style={{ width: '100%', backgroundColor: '#26452B', color: 'white', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer' }}
+            style={{ width: '100%', backgroundColor: '#26452B', color: 'white', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', marginBottom: 12 }}
           >
             Start drop-off →
           </button>
+
+          {/* Hiking finished button */}
+          {hikingFinishedCount !== null ? (
+            <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT, textAlign: 'center' }}>
+              Sent to {hikingFinishedCount} owner{hikingFinishedCount !== 1 ? 's' : ''} ✓
+            </p>
+          ) : (
+            <button
+              onClick={sendHikingFinished}
+              disabled={hikingFinishedBusy}
+              style={{
+                width: '100%', backgroundColor: 'white', border: '1px solid #E8E2D9',
+                color: '#3B2A1F', borderRadius: 12, padding: '12px', fontSize: 14,
+                fontFamily: FONT, cursor: hikingFinishedBusy ? 'not-allowed' : 'pointer',
+                opacity: hikingFinishedBusy ? 0.6 : 1,
+              }}
+            >
+              {hikingFinishedBusy ? 'Sending…' : 'Hiking finished — on our way home 🏠'}
+            </button>
+          )}
         </div>
       )}
 
@@ -902,94 +997,6 @@ export default function RunPage() {
       {mode === 'dropoff' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 40px' }}>
 
-          {/* Next dropoff hero card */}
-          {nextDropoff && !allDroppedOff && (
-            <div style={{ backgroundColor: '#26452B', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#E6C89A', letterSpacing: '0.1em', fontFamily: FONT, margin: '0 0 12px', textTransform: 'uppercase' }}>
-                Next Drop-Off
-              </p>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
-                {nextDropoff.dogPhotoUrl ? (
-                  <img src={nextDropoff.dogPhotoUrl} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
-                ) : (
-                  <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <PawLight size={28} />
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{nextDropoff.dogName}</p>
-                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{nextDropoff.ownerName}</p>
-                  {nextDropoff.ownerPhone && (
-                    <p style={{ fontSize: 13, color: '#E6C89A', fontFamily: FONT, margin: '0 0 2px' }}>{nextDropoff.ownerPhone}</p>
-                  )}
-                  {nextDropoff.ownerAddress && (
-                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 6px' }}>{nextDropoff.ownerAddress}</p>
-                  )}
-                  {nextDropoff.dropoffMethod && (
-                    <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
-                      {nextDropoff.dropoffMethod}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Optional photo */}
-              <div style={{ marginBottom: 12 }}>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  style={{ display: 'none' }}
-                  onChange={e => {
-                    const file = e.target.files?.[0]
-                    if (file) setDropoffPhoto(prev => ({ ...prev, [nextDropoff.id]: file }))
-                    e.target.value = ''
-                  }}
-                />
-                {dropoffPhoto[nextDropoff.id] ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 12px' }}>
-                    <span style={{ fontSize: 13, color: 'white', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>
-                      📷 {dropoffPhoto[nextDropoff.id].name}
-                    </span>
-                    <button
-                      onClick={() => setDropoffPhoto(prev => { const n = { ...prev }; delete n[nextDropoff.id]; return n })}
-                      style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer' }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'transparent', fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, cursor: 'pointer' }}
-                  >
-                    📷 Add photo (optional)
-                  </button>
-                )}
-              </div>
-
-              {/* Optional note */}
-              <textarea
-                maxLength={200}
-                placeholder="Note for owner (optional)"
-                value={dropoffNote[nextDropoff.id] ?? ''}
-                onChange={e => setDropoffNote(prev => ({ ...prev, [nextDropoff.id]: e.target.value }))}
-                rows={2}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.08)', fontSize: 13, color: 'white', WebkitTextFillColor: 'white', fontFamily: FONT, resize: 'none', outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
-              />
-
-              <button
-                onClick={() => confirmDropoff(nextDropoff.id)}
-                disabled={busy === nextDropoff.id}
-                style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy === nextDropoff.id ? 0.5 : 1 }}
-              >
-                {busy === nextDropoff.id ? 'Saving…' : 'Confirm drop-off ✓'}
-              </button>
-            </div>
-          )}
-
-          {/* All dropped off */}
           {allDroppedOff && (
             <div style={{ backgroundColor: '#E8F0E5', border: '1px solid #C5D9BF', borderRadius: 16, padding: 24, marginBottom: 12, textAlign: 'center' }}>
               <p style={{ fontSize: 28, margin: '0 0 8px' }}>🎉</p>
@@ -998,63 +1005,263 @@ export default function RunPage() {
             </div>
           )}
 
-          {/* Dropoff list */}
-          <div>
-            {dropoffQueue.map(b => (
-              <div
-                key={b.id}
-                style={{
-                  backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginBottom: 8,
-                  display: b.id === nextDropoff?.id && !allDroppedOff ? 'none' : 'flex',
-                  alignItems: 'center', gap: 12,
-                }}
-              >
-                {b.dogPhotoUrl ? (
-                  <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
-                ) : (
-                  <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <PawDark size={22} />
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
-                  <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>
-                    {b.ownerName}{b.ownerAddress ? ` · ${b.ownerAddress}` : ''}
-                  </p>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  {b.droppedOffAt ? (
-                    <>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: '#26452B', fontFamily: FONT, margin: '0 0 2px' }}>{fmtTime(b.droppedOffAt)}</p>
-                      <button
-                        onClick={() => setConfirmUndo({ bookingId: b.id, type: 'dropoff' })}
-                        style={{ fontSize: 11, color: '#8A7E72', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                      >
-                        Undo
-                      </button>
-                    </>
-                  ) : b.id !== nextDropoff?.id ? (
-                    <button
-                      onClick={() => confirmDropoff(b.id)}
-                      disabled={!!busy}
-                      style={{ backgroundColor: '#E8F0E5', color: '#26452B', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
-                    >
-                      {busy === b.id ? '…' : 'Drop-off'}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {droppedOff.length > 0 && !allDroppedOff && (
-            <p style={{ fontSize: 12, color: '#8A7E72', fontFamily: FONT, textAlign: 'center', padding: '16px 0 0' }}>
-              {droppedOff.length} of {dropoffQueue.length} dropped off
+          {!allDroppedOff && dropoffPending.length > 1 && (
+            <p style={{ fontSize: 12, color: '#8A7E72', fontStyle: 'italic', fontFamily: FONT, textAlign: 'right', marginBottom: 8 }}>
+              {savingDropoffOrder ? 'Saving…' : 'Hold to reorder'}
             </p>
           )}
+
+          {/* Draggable dropoff queue */}
+          {!allDroppedOff && (
+            <DragDropContext onDragEnd={onDropoffDragEnd}>
+              <Droppable droppableId="dropoff-queue">
+                {(provided) => (
+                  <div ref={provided.innerRef} {...provided.droppableProps}>
+                    {dropoffPending.map((b, i) => (
+                      <Draggable key={b.id} draggableId={b.id} index={i}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            style={{
+                              ...provided.draggableProps.style,
+                              marginBottom: 8,
+                              boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.15)' : 'none',
+                            }}
+                          >
+                            {i === 0 ? (
+                              /* Hero card */
+                              <div style={{ backgroundColor: '#26452B', borderRadius: 16, padding: 16 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                  <p style={{ fontSize: 11, fontWeight: 700, color: '#E6C89A', letterSpacing: '0.1em', fontFamily: FONT, margin: 0, textTransform: 'uppercase' }}>
+                                    Next Drop-Off
+                                  </p>
+                                  <div {...(provided.dragHandleProps ?? {})} style={{ cursor: 'grab', lineHeight: 0 }}>
+                                    <DragHandleIcon color="rgba(255,255,255,0.4)" />
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+                                  {b.dogPhotoUrl ? (
+                                    <img src={b.dogPhotoUrl} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
+                                  ) : (
+                                    <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <PawLight size={28} />
+                                    </div>
+                                  )}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ fontSize: 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                    <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerName}</p>
+                                    {b.ownerPhone && (
+                                      <p style={{ fontSize: 13, color: '#E6C89A', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerPhone}</p>
+                                    )}
+                                    {b.ownerAddress && (
+                                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 6px' }}>{b.ownerAddress}</p>
+                                    )}
+                                    {b.dropoffMethod && (
+                                      <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                        {b.dropoffMethod}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <NotifRow
+                                  booking={b}
+                                  sentKeys={sentNotifs[b.id] ?? []}
+                                  busyKey={notifBusy[b.id] ?? null}
+                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                  dark
+                                />
+
+                                {/* Optional photo */}
+                                <div style={{ marginTop: 12, marginBottom: 12 }}>
+                                  <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    style={{ display: 'none' }}
+                                    onChange={e => {
+                                      const file = e.target.files?.[0]
+                                      if (file) setDropoffPhoto(prev => ({ ...prev, [b.id]: file }))
+                                      e.target.value = ''
+                                    }}
+                                  />
+                                  {dropoffPhoto[b.id] ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 12px' }}>
+                                      <span style={{ fontSize: 13, color: 'white', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>
+                                        📷 {dropoffPhoto[b.id].name}
+                                      </span>
+                                      <button
+                                        onClick={() => setDropoffPhoto(prev => { const n = { ...prev }; delete n[b.id]; return n })}
+                                        style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer' }}
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => fileInputRef.current?.click()}
+                                      style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'transparent', fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, cursor: 'pointer' }}
+                                    >
+                                      📷 Add photo (optional)
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Optional note */}
+                                <textarea
+                                  maxLength={200}
+                                  placeholder="Note for owner (optional)"
+                                  value={dropoffNote[b.id] ?? ''}
+                                  onChange={e => setDropoffNote(prev => ({ ...prev, [b.id]: e.target.value }))}
+                                  rows={2}
+                                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.08)', fontSize: 13, color: 'white', WebkitTextFillColor: 'white', fontFamily: FONT, resize: 'none', outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
+                                />
+
+                                <button
+                                  onClick={() => confirmDropoff(b.id)}
+                                  disabled={busy === b.id}
+                                  style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy === b.id ? 0.5 : 1 }}
+                                >
+                                  {busy === b.id ? 'Saving…' : 'Confirm drop-off ✓'}
+                                </button>
+                              </div>
+                            ) : (
+                              /* Regular card */
+                              <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                  {b.dogPhotoUrl ? (
+                                    <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
+                                  ) : (
+                                    <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <PawDark size={22} />
+                                    </div>
+                                  )}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                    <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>
+                                      {b.ownerName}{b.ownerAddress ? ` · ${b.ownerAddress}` : ''}
+                                    </p>
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                                    <button
+                                      onClick={() => confirmDropoff(b.id)}
+                                      disabled={!!busy}
+                                      style={{ backgroundColor: '#E8F0E5', color: '#26452B', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
+                                    >
+                                      {busy === b.id ? '…' : 'Drop-off'}
+                                    </button>
+                                    <div
+                                      {...(provided.dragHandleProps ?? {})}
+                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, cursor: 'grab' }}
+                                    >
+                                      <DragHandleIcon />
+                                    </div>
+                                  </div>
+                                </div>
+                                <NotifRow
+                                  booking={b}
+                                  sentKeys={sentNotifs[b.id] ?? []}
+                                  busyKey={notifBusy[b.id] ?? null}
+                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                  dark={false}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          )}
+
+          {/* Already dropped off (static) */}
+          {droppedOffDogs.map(b => (
+            <div key={b.id} style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+              {b.dogPhotoUrl ? (
+                <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <PawDark size={22} />
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>
+                  {b.ownerName}{b.ownerAddress ? ` · ${b.ownerAddress}` : ''}
+                </p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#26452B', fontFamily: FONT, margin: '0 0 2px' }}>{fmtTime(b.droppedOffAt)}</p>
+                <button
+                  onClick={() => setConfirmUndo({ bookingId: b.id, type: 'dropoff' })}
+                  style={{ fontSize: 11, color: '#8A7E72', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                >
+                  Undo
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {droppedOffDogs.length > 0 && !allDroppedOff && (
+            <p style={{ fontSize: 12, color: '#8A7E72', fontFamily: FONT, textAlign: 'center', padding: '16px 0 0' }}>
+              {droppedOffDogs.length} of {dropoffPending.length + droppedOffDogs.length} dropped off
+            </p>
+          )}
+
         </div>
       )}
 
     </main>
+  )
+}
+
+// ---- NotifRow ---------------------------------------------------------------
+
+function NotifRow({ booking, sentKeys, busyKey, onSend, dark }: {
+  booking: RunBooking
+  sentKeys: string[]
+  busyKey: string | null
+  onSend: (key: string, message: string) => void
+  dark: boolean
+}) {
+  const borderColor = dark ? 'rgba(255,255,255,0.15)' : '#E8E2D9'
+
+  if (!booking.ownerPhone) {
+    return (
+      <div style={{ paddingTop: 10, marginTop: 10, borderTop: `1px solid ${borderColor}` }}>
+        <p style={{ fontSize: 11, color: dark ? 'rgba(255,255,255,0.4)' : '#8A7E72', margin: 0, fontFamily: FONT }}>No phone on file</p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ paddingTop: 10, marginTop: 10, borderTop: `1px solid ${borderColor}`, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {NOTIF_BUTTONS.map(btn => {
+        const sent = sentKeys.includes(btn.key)
+        const isBusy = busyKey === btn.key
+        return (
+          <button
+            key={btn.key}
+            onClick={() => !sent && !busyKey && onSend(btn.key, btn.message)}
+            disabled={sent || !!busyKey}
+            style={{
+              fontSize: 11, padding: '4px 8px', borderRadius: 8, border: 'none',
+              cursor: (sent || busyKey) ? 'default' : 'pointer',
+              backgroundColor: sent ? '#E8F0E5' : '#EEE9E0',
+              color: sent ? '#26452B' : '#3B2A1F',
+              fontFamily: FONT, fontWeight: sent ? 600 : 400,
+            }}
+          >
+            {isBusy ? '…' : sent ? `✓ ${btn.label}` : btn.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
