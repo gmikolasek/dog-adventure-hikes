@@ -41,6 +41,12 @@ export default function DogProfile() {
 
   // Track existing pending dog so we can update instead of insert
   const [existingDogId, setExistingDogId] = useState<string | null>(null)
+  // Whether user chose "Add another dog" — forces insert on next save
+  const [addingNew, setAddingNew] = useState(false)
+  // Whether the user has already accepted the contract
+  const [contractAccepted, setContractAccepted] = useState(false)
+  // Name of the last-saved dog (for step-4 display)
+  const [savedDogName, setSavedDogName] = useState('')
 
   // Dog profile fields
   const [name, setName] = useState('')
@@ -64,43 +70,47 @@ export default function DogProfile() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/login'); return }
 
-      // Pre-populate if a pending dog already exists
-      const { data: dogs } = await supabase
-        .from('dogs')
-        .select('*')
-        .eq('owner_id', session.user.id)
-        .eq('approval_status', 'pending')
-        .order('created_at', { ascending: true })
-        .limit(1)
+      // Check if navigated here to add a new dog (?new=1 skips pre-population)
+      const skipPrePopulate = new URLSearchParams(window.location.search).get('new') === '1'
 
-      const dog = dogs?.[0]
-      if (dog) {
-        setExistingDogId(dog.id)
-        if (dog.name) setName(dog.name)
-        if (dog.breed) setBreed(dog.breed)
-        if (dog.age_years != null) setAgeYears(String(dog.age_years))
-        if (dog.weight_kg != null) setWeightKg(String(dog.weight_kg))
-        if (dog.sex) setSex(dog.sex)
-        if (dog.neutered !== null) setNeutered(dog.neutered)
-        if (dog.disposition_notes) setDispositionNotes(dog.disposition_notes)
-        if (dog.other_notes) setOtherNotes(dog.other_notes)
-        if (dog.recall_score) setRecallScore(dog.recall_score)
-        if (dog.car_score) setCarScore(dog.car_score)
-        if (dog.social_score) setSocialScore(dog.social_score)
-        if (dog.known_aggression !== null) setKnownAggression(dog.known_aggression)
-        if (dog.airtag_confirmed !== null) setAirtag(dog.airtag_confirmed)
-        if (dog.ecollar !== null) setEcollar(dog.ecollar)
-        // Show existing photo as preview (no re-upload needed unless user picks a new one)
-        if (dog.photo_url) setPhotoPreview(dog.photo_url)
+      if (!skipPrePopulate) {
+        // Pre-populate if a pending dog already exists
+        const { data: dogs } = await supabase
+          .from('dogs')
+          .select('*')
+          .eq('owner_id', session.user.id)
+          .eq('approval_status', 'pending')
+          .order('created_at', { ascending: true })
+          .limit(1)
+
+        const dog = dogs?.[0]
+        if (dog) {
+          setExistingDogId(dog.id)
+          if (dog.name) setName(dog.name)
+          if (dog.breed) setBreed(dog.breed)
+          if (dog.age_years != null) setAgeYears(String(dog.age_years))
+          if (dog.weight_kg != null) setWeightKg(String(dog.weight_kg))
+          if (dog.sex) setSex(dog.sex)
+          if (dog.neutered !== null) setNeutered(dog.neutered)
+          if (dog.disposition_notes) setDispositionNotes(dog.disposition_notes)
+          if (dog.other_notes) setOtherNotes(dog.other_notes)
+          if (dog.recall_score) setRecallScore(dog.recall_score)
+          if (dog.car_score) setCarScore(dog.car_score)
+          if (dog.social_score) setSocialScore(dog.social_score)
+          if (dog.known_aggression !== null) setKnownAggression(dog.known_aggression)
+          if (dog.airtag_confirmed !== null) setAirtag(dog.airtag_confirmed)
+          if (dog.ecollar !== null) setEcollar(dog.ecollar)
+          if (dog.photo_url) setPhotoPreview(dog.photo_url)
+        }
       }
 
-      // Pre-populate training_interest from users table
       const { data: userRow } = await supabase
         .from('users')
-        .select('training_interest')
+        .select('training_interest, contract_accepted_at')
         .eq('id', session.user.id)
         .maybeSingle()
       if (userRow?.training_interest) setTrainingInterest(true)
+      if (userRow?.contract_accepted_at) setContractAccepted(true)
     }
     init()
   }, [router])
@@ -211,10 +221,12 @@ export default function DogProfile() {
       approval_status: 'pending',
     }
 
-    let dogId = existingDogId
+    // Use existingDogId only if we are not in addingNew mode
+    const updateId = addingNew ? null : existingDogId
+    let dogId = updateId
 
-    if (existingDogId) {
-      const { error: updateError } = await supabase.from('dogs').update(dogData).eq('id', existingDogId)
+    if (updateId) {
+      const { error: updateError } = await supabase.from('dogs').update(dogData).eq('id', updateId)
       if (updateError) { setError(updateError.message); setLoading(false); return }
     } else {
       const { data: inserted, error: insertError } = await supabase.from('dogs').insert(dogData).select('id')
@@ -226,7 +238,6 @@ export default function DogProfile() {
       await supabase.from('users').update({ training_interest: true }).eq('id', session.user.id)
     }
 
-    // Only upload photo if user selected a new file (not just showing existing URL)
     if (photoFile && dogId) {
       const photoUrl = await uploadDogProfilePhoto(photoFile, session.user.id, dogId)
       if (photoUrl) {
@@ -234,7 +245,32 @@ export default function DogProfile() {
       }
     }
 
-    router.push('/onboarding/contract')
+    setSavedDogName(name)
+    setStep(4)
+    setLoading(false)
+  }
+
+  function resetForNewDog() {
+    setAddingNew(true)
+    setExistingDogId(null)
+    setName('')
+    setBreed('')
+    setAgeYears('')
+    setWeightKg('')
+    setSex('')
+    setNeutered(null)
+    setDispositionNotes('')
+    setOtherNotes('')
+    setRecallScore(0)
+    setCarScore(0)
+    setSocialScore(0)
+    setKnownAggression(null)
+    setAirtag(null)
+    setEcollar(null)
+    setPhotoFile(null)
+    setPhotoPreview(null)
+    setError('')
+    setStep(1)
   }
 
   const step1Valid = name.length >= 1 && breed.length >= 1 && sex !== ''
@@ -261,21 +297,25 @@ export default function DogProfile() {
           <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 16 }}>
             <span style={{ fontSize: 28 }}>🐕</span>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT }}>Your dog</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT }}>
+            {addingNew ? 'Add another dog' : 'Your dog'}
+          </h1>
           <p style={{ color: '#8A7E72', marginTop: 4, fontSize: 14, fontFamily: FONT }}>
-            {step === 1 ? 'Basic information' : step === 2 ? 'Behaviour and equipment' : 'Almost done'}
+            {step === 1 ? 'Basic information' : step === 2 ? 'Behaviour and equipment' : step === 3 ? 'Almost done' : 'Dog saved!'}
           </p>
         </div>
 
-        {/* Progress */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
-          {[1, 2, 3].map(n => (
-            <div
-              key={n}
-              style={{ flex: 1, height: 6, borderRadius: 4, backgroundColor: n <= step ? '#26452B' : '#E8E2D9' }}
-            />
-          ))}
-        </div>
+        {/* Progress (steps 1–3 only) */}
+        {step <= 3 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
+            {[1, 2, 3].map(n => (
+              <div
+                key={n}
+                style={{ flex: 1, height: 6, borderRadius: 4, backgroundColor: n <= step ? '#26452B' : '#E8E2D9' }}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Step 1: Basic info */}
         {step === 1 && (
@@ -414,6 +454,38 @@ export default function DogProfile() {
               <button onClick={() => setStep(2)} style={btnBack}>← Back</button>
               <button onClick={saveDog} disabled={loading} style={btnNext(loading)}>
                 {loading ? 'Saving...' : 'Save dog →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Saved — add another or continue */}
+        {step === 4 && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: '#E8F0E5', marginBottom: 16 }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#26452B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <p style={{ fontSize: 18, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, marginBottom: 6 }}>
+              {savedDogName} saved!
+            </p>
+            <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT, marginBottom: 32, lineHeight: 1.5 }}>
+              Submitted for review. Would you like to add another dog?
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button
+                onClick={resetForNewDog}
+                style={{ width: '100%', backgroundColor: 'white', border: '1px solid #E8E2D9', color: '#3B2A1F', borderRadius: 12, padding: '14px', fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: 'pointer' }}
+              >
+                + Add another dog
+              </button>
+              <button
+                onClick={() => router.push(contractAccepted ? '/client/profile' : '/onboarding/contract')}
+                style={{ width: '100%', backgroundColor: '#26452B', color: 'white', borderRadius: 12, padding: '14px', fontSize: 14, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer' }}
+              >
+                {contractAccepted ? 'Done' : 'Continue to contract →'}
               </button>
             </div>
           </div>

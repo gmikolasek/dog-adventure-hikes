@@ -353,7 +353,7 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 | Client booking flow (`/client/book`) | ✅ Brand tokens applied |
 | Client payment step (`/client/book/payment`) | ✅ Brand tokens applied |
 | Client booking history (`/client/history`) | ✅ Brand tokens applied |
-| Client dog profile (`/client/profile`) | ✅ Brand tokens applied |
+| Client dog profile (`/client/profile`) | ✅ Multi-dog cards, per-dog edit, Add a dog button |
 | Client contract view (`/client/contract`) | ✅ Read-only agreement + acceptance date |
 
 ### Not yet polished
@@ -441,6 +441,18 @@ ecdc5d9  Add /client redirect page to /client/home
 - Holding fee applies if dog not present within 10 minutes of arrival notification
 - Client is "Active" as soon as any dog has `approval_status = 'approved' | 'approved_with_conditions'`
 - Client is "Rejected" if any dog is `declined` and none are approved
+
+---
+
+## Multi-dog Support
+
+- Each dog is a separate row in the `dogs` table with its own `approval_status`; dogs are independently approved
+- `dogs.approval_status` drives all client access checks (see `landingRoute()` and booking page filter)
+- `onboarding/dog/page.tsx` — after saving, shows step 4 "Add another dog?" screen; "Continue" routes to `/onboarding/contract` if contract not yet accepted, or `/client/profile` if already accepted
+- Navigating to `/onboarding/dog?new=1` skips pre-population of existing pending dog (used by profile "Add a dog" button)
+- `client/profile/page.tsx` — shows all dogs as cards with per-dog photo upload and edit form; "+ Add a dog" navigates to `/onboarding/dog?new=1`
+- `client/book/page.tsx` — already multi-dog: shows all approved/approved_with_conditions dogs for selection
+- `onboarding/pending/page.tsx` — shows all client dogs with their current approval status badges
 
 ---
 

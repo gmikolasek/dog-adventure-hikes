@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUserState } from '@/lib/userState'
 import { uploadDogProfilePhoto } from '@/lib/photos'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -27,6 +26,7 @@ type DogFull = {
   photo_url: string | null
   approval_status: string | null
   approval_conditions: string | null
+  decline_reason: string | null
 }
 
 type EditForm = {
@@ -66,11 +66,11 @@ const T = {
   forest:     '#26452B',
   moss:       '#4D6B46',
   orange:     '#E08A3E',
-  sand:       '#E6C89A',
   brown:      '#3B2A1F',
   cardBorder: '#E8E2D9',
   divider:    '#F0EBE3',
   badgeBg:    '#EEE9E0',
+  completeBg: '#E8F0E5',
   muted:      '#8A7E72',
 } as const
 
@@ -99,57 +99,7 @@ function IconCamera({ size = 14, color = '#fff' }: { size?: number; color?: stri
   )
 }
 
-function IconCalendar({ size = 16, color = T.moss }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  )
-}
-
-function IconScale({ size = 16, color = T.moss }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <line x1="12" y1="3" x2="12" y2="21" />
-      <path d="M5 9l7-6 7 6" />
-      <path d="M3 15h6a3 3 0 0 0 6 0h6" />
-    </svg>
-  )
-}
-
-function IconPerson({ size = 16, color = T.moss }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  )
-}
-
-function IconNotepad({ size = 16, color = T.moss }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="8" y1="13" x2="16" y2="13" />
-      <line x1="8" y1="17" x2="16" y2="17" />
-    </svg>
-  )
-}
-
-function IconMountain({ size = 16, color = T.moss }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <polygon points="3 20 21 20 12 4 3 20" />
-      <polyline points="3 20 9 10 12 14 15 10 21 20" />
-    </svg>
-  )
-}
-
-function IconPencil({ size = 16, color = '#fff' }: { size?: number; color?: string }) {
+function IconPencil({ size = 14, color = '#fff' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -184,13 +134,11 @@ export default function ClientProfile() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/'); return }
 
-      const state = await getUserState(session.user.id)
-
       setUserId(session.user.id)
 
       const { data: dogRows } = await supabase
         .from('dogs')
-        .select('id, name, breed, age_years, weight_kg, sex, neutered, recall_score, car_score, social_score, known_aggression, airtag_confirmed, ecollar, disposition_notes, other_notes, photo_url, approval_status, approval_conditions')
+        .select('id, name, breed, age_years, weight_kg, sex, neutered, recall_score, car_score, social_score, known_aggression, airtag_confirmed, ecollar, disposition_notes, other_notes, photo_url, approval_status, approval_conditions, decline_reason')
         .eq('owner_id', session.user.id)
         .order('created_at', { ascending: true })
 
@@ -321,51 +269,6 @@ export default function ClientProfile() {
     )
   }
 
-  const dog = dogs[0] as DogFull | undefined
-
-  if (!dog) {
-    return (
-      <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex items-center justify-center px-5">
-        <p style={{ color: T.muted, fontSize: 14 }}>No dog profile found.</p>
-      </main>
-    )
-  }
-
-  const isUploading = uploadingDogId === dog.id
-  const displayed = (photoPreview?.dogId === dog.id ? photoPreview.url : null) ?? dog.photo_url
-  const isEditing = editingDogId === dog.id
-
-  // Sex label helper
-  const sexLabel = (() => {
-    if (!dog.sex) return null
-    const base = dog.sex.charAt(0).toUpperCase() + dog.sex.slice(1).toLowerCase()
-    return dog.neutered ? `${base} · neutered` : base
-  })()
-
-  // Info rows (only show rows with a value)
-  const infoRows: { icon: React.ReactNode; label: string; value: string }[] = [
-    dog.age_years != null && { icon: <IconCalendar size={16} />, label: 'Age', value: `${dog.age_years} year${dog.age_years !== 1 ? 's' : ''}` },
-    dog.breed && { icon: <IconPaw size={16} />, label: 'Breed', value: dog.breed },
-    dog.weight_kg != null && { icon: <IconScale size={16} />, label: 'Weight', value: `${dog.weight_kg} kg` },
-    sexLabel && { icon: <IconPerson size={16} />, label: 'Sex', value: sexLabel },
-  ].filter(Boolean) as { icon: React.ReactNode; label: string; value: string }[]
-
-  // Trail readiness scores
-  const scores = [
-    { label: 'Recall', value: dog.recall_score },
-    { label: 'Car comfort', value: dog.car_score },
-    { label: 'Social', value: dog.social_score },
-  ].filter(s => s.value != null) as { label: string; value: number }[]
-
-  const pills = [
-    dog.airtag_confirmed === true && { label: 'AirTag ✓', bg: '#E8F0E5', color: T.forest },
-    dog.ecollar === true && { label: 'E-Collar', bg: T.badgeBg, color: T.moss },
-    dog.known_aggression === true && { label: 'Aggression noted', bg: '#FBE9E3', color: '#C1562D' },
-  ].filter(Boolean) as { label: string; bg: string; color: string }[]
-
-  const hasTrailReadiness = scores.length > 0 || pills.length > 0
-  const hasNotes = !!(dog.disposition_notes || dog.other_notes)
-
   return (
     <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen pb-0">
       <div className="w-full max-w-sm mx-auto px-5">
@@ -374,308 +277,190 @@ export default function ClientProfile() {
         <div className="flex items-center justify-between pt-12 pb-6">
           <button
             onClick={() => router.push('/client/home')}
-            style={{ backgroundColor: T.cardBorder, color: T.forest, borderRadius: '50%', width: 36, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, lineHeight: 1 }}
+            style={{ backgroundColor: T.cardBorder, borderRadius: '50%', width: 36, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0 }}
           >
-            ←
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.forest} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
           </button>
-          <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT }} className="text-lg">My Dog</h1>
+          <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 18 }}>My Dogs</h1>
           <div style={{ width: 36 }} />
         </div>
-
-        {/* ── Hero section ── */}
-        <div className="flex flex-col items-center mb-6">
-          <div style={{ position: 'relative', marginBottom: 16 }}>
-            <button
-              onClick={() => handlePhotoClick(dog.id)}
-              disabled={isUploading}
-              style={{ display: 'block', cursor: 'pointer' }}
-              title="Change photo"
-            >
-              {displayed ? (
-                <div
-                  style={{
-                    width: 120, height: 120, borderRadius: '50%',
-                    backgroundImage: `url(${displayed})`,
-                    backgroundSize: 'cover', backgroundPosition: 'center top',
-                    border: `3px solid ${T.forest}`,
-                    flexShrink: 0,
-                  }}
-                  role="img"
-                  aria-label={dog.name}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 120, height: 120, borderRadius: '50%',
-                    backgroundColor: T.forest,
-                    border: `3px solid ${T.forest}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <IconPaw size={44} color="rgba(255,255,255,0.45)" />
-                </div>
-              )}
-              {isUploading && (
-                <div
-                  style={{
-                    position: 'absolute', inset: 0, borderRadius: '50%',
-                    backgroundColor: 'rgba(0,0,0,0.4)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <p style={{ color: '#fff', fontSize: 11 }}>Saving…</p>
-                </div>
-              )}
-              {/* Camera button */}
-              <div
-                style={{
-                  position: 'absolute', bottom: 3, right: 3,
-                  width: 32, height: 32, borderRadius: '50%',
-                  backgroundColor: T.forest,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: '2px solid white',
-                  pointerEvents: 'none',
-                }}
-              >
-                <IconCamera size={14} color="#fff" />
-              </div>
-            </button>
-          </div>
-
-          {/* Name + paw */}
-          <div className="flex items-center gap-2 mb-1">
-            <h2 style={{ color: T.brown, fontWeight: 700, fontSize: 24, fontFamily: FONT, lineHeight: 1.2 }}>
-              {dog.name}
-            </h2>
-            <IconPaw size={20} color={T.orange} />
-          </div>
-
-          {dog.breed && (
-            <p style={{ color: T.muted, fontSize: 15, fontFamily: FONT, marginBottom: 10 }}>
-              {dog.breed}
-            </p>
-          )}
-
-          <ApprovalBadge status={dog.approval_status} />
-
-          {dog.approval_status === 'approved_with_conditions' && dog.approval_conditions && (
-            <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT, textAlign: 'center', marginTop: 8, lineHeight: 1.5, maxWidth: 280 }}>
-              {dog.approval_conditions}
-            </p>
-          )}
-        </div>
-
-        {/* ── Info rows card ── */}
-        {infoRows.length > 0 && (
-          <div
-            style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '8px 16px', marginBottom: 12 }}
-          >
-            {infoRows.map((row, i) => (
-              <div
-                key={row.label}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0',
-                  borderTop: i > 0 ? `1px solid ${T.divider}` : 'none',
-                }}
-              >
-                <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: T.badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {row.icon}
-                </div>
-                <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 14, flex: 1 }}>
-                  {row.label}
-                </p>
-                <p style={{ color: T.muted, fontFamily: FONT, fontSize: 14 }}>
-                  {row.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Notes card ── */}
-        {hasNotes && (
-          <div
-            style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 12 }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: T.badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <IconNotepad size={16} />
-              </div>
-              <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 14 }}>Notes</p>
-            </div>
-            {dog.disposition_notes && (
-              <div style={{ marginBottom: dog.other_notes ? 12 : 0 }}>
-                <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT, fontStyle: 'italic', marginBottom: 4 }}>Disposition</p>
-                <p style={{ color: T.brown, fontSize: 14, fontFamily: FONT, lineHeight: 1.5 }}>{dog.disposition_notes}</p>
-              </div>
-            )}
-            {dog.other_notes && (
-              <div>
-                <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT, fontStyle: 'italic', marginBottom: 4 }}>Other</p>
-                <p style={{ color: T.brown, fontSize: 14, fontFamily: FONT, lineHeight: 1.5 }}>{dog.other_notes}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Trail readiness card ── */}
-        {hasTrailReadiness && (
-          <div
-            style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 12 }}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: T.badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <IconMountain size={16} />
-              </div>
-              <p style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 14 }}>Trail Readiness</p>
-            </div>
-
-            {scores.length > 0 && (
-              <div className="space-y-3 mb-4">
-                {scores.map(s => (
-                  <div key={s.label} className="flex items-center justify-between">
-                    <p style={{ color: T.brown, fontSize: 14, fontFamily: FONT }}>{s.label}</p>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }, (_, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: 10, height: 10, borderRadius: '50%',
-                            backgroundColor: i < s.value ? T.forest : T.cardBorder,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {pills.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {pills.map(p => (
-                  <span
-                    key={p.label}
-                    style={{ backgroundColor: p.bg, color: p.color, borderRadius: 20, padding: '4px 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500 }}
-                  >
-                    {p.label}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── Status messages ── */}
         {uploadError && <p style={{ color: '#C1562D', fontSize: 13, fontFamily: FONT, textAlign: 'center', marginBottom: 8 }}>{uploadError}</p>}
         {uploadSuccess && <p style={{ color: T.moss, fontSize: 13, fontFamily: FONT, textAlign: 'center', marginBottom: 8 }}>Photo saved.</p>}
         {saveSuccess && <p style={{ color: T.moss, fontSize: 13, fontFamily: FONT, textAlign: 'center', marginBottom: 8 }}>Profile saved.</p>}
 
-        {/* ── Edit Profile button ── */}
-        <button
-          onClick={() => isEditing ? cancelEdit() : startEdit(dog)}
-          style={{
-            width: '100%', backgroundColor: isEditing ? T.cardBorder : T.forest,
-            color: isEditing ? T.brown : '#fff',
-            borderRadius: 12, padding: '14px 0', fontFamily: FONT, fontWeight: 600, fontSize: 15,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            marginBottom: 16, cursor: 'pointer', border: 'none',
-          }}
-        >
-          {!isEditing && <IconPencil size={16} color="#fff" />}
-          {isEditing ? 'Cancel editing' : 'Edit Profile'}
-        </button>
+        {/* ── Dog list ── */}
+        {dogs.length === 0 ? (
+          <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT, textAlign: 'center', padding: '32px 0' }}>No dog profile yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
+            {dogs.map(dog => {
+              const isUploading = uploadingDogId === dog.id
+              const displayed = (photoPreview?.dogId === dog.id ? photoPreview.url : null) ?? dog.photo_url
+              const isEditing = editingDogId === dog.id
+              const metaChunks = [
+                dog.breed,
+                dog.sex ? (dog.sex.charAt(0).toUpperCase() + dog.sex.slice(1).toLowerCase()) + (dog.neutered ? ' · neutered' : '') : null,
+                dog.age_years != null ? `${dog.age_years}y` : null,
+                dog.weight_kg != null ? `${dog.weight_kg}kg` : null,
+              ].filter(Boolean).join(' · ')
 
-        {/* ── Edit form (when editing) ── */}
-        {isEditing && editForm && (
-          <div
-            style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 20, marginBottom: 16 }}
-            className="space-y-4"
-          >
-            <div>
-              <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Breed</label>
-              <input
-                type="text"
-                value={editForm.breed}
-                onChange={e => upd('breed', e.target.value)}
-                placeholder="e.g. Labrador Retriever"
-                className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
+              return (
+                <div key={dog.id} style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16 }}>
+                  {/* Dog card header */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    {/* Photo */}
+                    <button
+                      onClick={() => handlePhotoClick(dog.id)}
+                      disabled={isUploading}
+                      style={{ position: 'relative', cursor: 'pointer', background: 'none', border: 'none', padding: 0, flexShrink: 0 }}
+                      title="Change photo"
+                    >
+                      {displayed ? (
+                        <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundImage: `url(${displayed})`, backgroundSize: 'cover', backgroundPosition: 'center top', border: `2px solid ${T.forest}` }} />
+                      ) : (
+                        <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: T.badgeBg, border: `2px solid ${T.cardBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <IconPaw size={22} color={T.moss} />
+                        </div>
+                      )}
+                      {isUploading && (
+                        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <p style={{ color: '#fff', fontSize: 9 }}>…</p>
+                        </div>
+                      )}
+                      <div style={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderRadius: '50%', backgroundColor: T.forest, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid white', pointerEvents: 'none' }}>
+                        <IconCamera size={10} color="#fff" />
+                      </div>
+                    </button>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Age (years)</label>
-                <input
-                  type="number" min="0" max="20" step="0.5"
-                  value={editForm.age_years}
-                  onChange={e => upd('age_years', e.target.value)}
-                  placeholder="3"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Weight (kg)</label>
-                <input
-                  type="number" min="0" max="100" step="0.5"
-                  value={editForm.weight_kg}
-                  onChange={e => upd('weight_kg', e.target.value)}
-                  placeholder="15"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-            </div>
+                    {/* Name + badge + meta */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: T.brown, fontFamily: FONT, margin: '0 0 4px' }}>{dog.name}</p>
+                      <ApprovalBadge status={dog.approval_status} />
+                      {dog.approval_status === 'approved_with_conditions' && dog.approval_conditions && (
+                        <p style={{ fontSize: 12, color: T.muted, fontFamily: FONT, marginTop: 4, lineHeight: 1.5 }}>{dog.approval_conditions}</p>
+                      )}
+                      {dog.approval_status === 'declined' && dog.decline_reason && (
+                        <p style={{ fontSize: 12, color: T.muted, fontFamily: FONT, marginTop: 4, lineHeight: 1.5 }}>{dog.decline_reason}</p>
+                      )}
+                      {metaChunks && (
+                        <p style={{ fontSize: 12, color: T.muted, fontFamily: FONT, marginTop: 4 }}>{metaChunks}</p>
+                      )}
+                    </div>
 
-            <ScoreField label="Recall score" value={editForm.recall_score} onChange={v => upd('recall_score', v)} />
-            <ScoreField label="Car score"    value={editForm.car_score}    onChange={v => upd('car_score', v)} />
-            <ScoreField label="Social score" value={editForm.social_score} onChange={v => upd('social_score', v)} />
+                    {/* Edit / Cancel button */}
+                    <button
+                      onClick={() => isEditing ? cancelEdit() : startEdit(dog)}
+                      style={{
+                        backgroundColor: isEditing ? T.cardBorder : T.forest,
+                        color: isEditing ? T.brown : '#fff',
+                        borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                        fontFamily: FONT, border: 'none', cursor: 'pointer', flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      {isEditing ? 'Cancel' : <><IconPencil size={12} color="#fff" /> Edit</>}
+                    </button>
+                  </div>
 
-            <YesNoField label="Known aggression" value={editForm.known_aggression} onChange={v => upd('known_aggression', v)} />
-            <YesNoField label="AirTag confirmed"  value={editForm.airtag_confirmed} onChange={v => upd('airtag_confirmed', v)} />
-            <YesNoField label="E-collar"          value={editForm.ecollar}          onChange={v => upd('ecollar', v)} />
+                  {/* Edit form */}
+                  {isEditing && editForm && (
+                    <div style={{ borderTop: `1px solid ${T.cardBorder}`, marginTop: 16, paddingTop: 16 }}>
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Breed</label>
+                        <input
+                          type="text"
+                          value={editForm.breed}
+                          onChange={e => upd('breed', e.target.value)}
+                          placeholder="e.g. Labrador Retriever"
+                          style={{ width: '100%', borderRadius: 10, border: `1px solid ${T.cardBorder}`, padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box' }}
+                        />
+                      </div>
 
-            <div>
-              <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Disposition notes</label>
-              <textarea
-                rows={3}
-                value={editForm.disposition_notes}
-                onChange={e => upd('disposition_notes', e.target.value)}
-                placeholder="Personality, triggers, things to know…"
-                className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                        <div>
+                          <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Age (years)</label>
+                          <input
+                            type="number" min="0" max="20" step="0.5"
+                            value={editForm.age_years}
+                            onChange={e => upd('age_years', e.target.value)}
+                            placeholder="3"
+                            style={{ width: '100%', borderRadius: 10, border: `1px solid ${T.cardBorder}`, padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Weight (kg)</label>
+                          <input
+                            type="number" min="0" max="100" step="0.5"
+                            value={editForm.weight_kg}
+                            onChange={e => upd('weight_kg', e.target.value)}
+                            placeholder="15"
+                            style={{ width: '100%', borderRadius: 10, border: `1px solid ${T.cardBorder}`, padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
 
-            <div>
-              <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Other notes</label>
-              <textarea
-                rows={2}
-                value={editForm.other_notes}
-                onChange={e => upd('other_notes', e.target.value)}
-                placeholder="Vet contact, medication, anything else…"
-                className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
+                      <ScoreField label="Recall score"  value={editForm.recall_score} onChange={v => upd('recall_score', v)} />
+                      <ScoreField label="Car score"     value={editForm.car_score}    onChange={v => upd('car_score', v)} />
+                      <ScoreField label="Social score"  value={editForm.social_score} onChange={v => upd('social_score', v)} />
 
-            {saveError && <p style={{ color: '#C1562D', fontSize: 12, fontFamily: FONT }}>{saveError}</p>}
+                      <YesNoField label="Known aggression"  value={editForm.known_aggression}  onChange={v => upd('known_aggression', v)} />
+                      <YesNoField label="AirTag confirmed"  value={editForm.airtag_confirmed}  onChange={v => upd('airtag_confirmed', v)} />
+                      <YesNoField label="E-collar"          value={editForm.ecollar}           onChange={v => upd('ecollar', v)} />
 
-            <button
-              onClick={() => saveEdit(dog.id)}
-              disabled={saving}
-              style={{
-                width: '100%', backgroundColor: T.forest, color: '#fff',
-                borderRadius: 12, padding: '14px 0', fontFamily: FONT, fontWeight: 600, fontSize: 15,
-                border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
-              }}
-            >
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Disposition notes</label>
+                        <textarea
+                          rows={3}
+                          value={editForm.disposition_notes}
+                          onChange={e => upd('disposition_notes', e.target.value)}
+                          placeholder="Personality, triggers, things to know…"
+                          style={{ width: '100%', borderRadius: 10, border: `1px solid ${T.cardBorder}`, padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box', resize: 'none' }}
+                        />
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', color: T.muted, fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>Other notes</label>
+                        <textarea
+                          rows={2}
+                          value={editForm.other_notes}
+                          onChange={e => upd('other_notes', e.target.value)}
+                          placeholder="Vet contact, medication, anything else…"
+                          style={{ width: '100%', borderRadius: 10, border: `1px solid ${T.cardBorder}`, padding: '10px 12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box', resize: 'none' }}
+                        />
+                      </div>
+
+                      {saveError && <p style={{ color: '#C1562D', fontSize: 12, fontFamily: FONT, marginBottom: 12 }}>{saveError}</p>}
+
+                      <button
+                        onClick={() => saveEdit(dog.id)}
+                        disabled={saving}
+                        style={{ width: '100%', backgroundColor: T.forest, color: '#fff', borderRadius: 12, padding: '14px 0', fontFamily: FONT, fontWeight: 600, fontSize: 15, border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
+                      >
+                        {saving ? 'Saving…' : 'Save changes'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 
+        {/* ── Add a dog ── */}
+        <button
+          onClick={() => router.push('/onboarding/dog?new=1')}
+          style={{ width: '100%', backgroundColor: 'white', border: `1px solid ${T.cardBorder}`, color: T.forest, borderRadius: 12, padding: '12px 16px', fontSize: 14, fontFamily: FONT, fontWeight: 600, cursor: 'pointer', marginBottom: 16 }}
+        >
+          + Add a dog
+        </button>
+
       </div>
 
-      {/* ── Decorative footer ── */}
-      {!isEditing && <DecorativeFooter />}
+      <DecorativeFooter />
 
       {/* Hidden file input */}
       <input
@@ -694,69 +479,31 @@ export default function ClientProfile() {
 function DecorativeFooter() {
   return (
     <div style={{ marginTop: 24, width: '100%', lineHeight: 0 }}>
-      <svg
-        viewBox="0 0 375 120"
-        width="100%"
-        height="120"
-        xmlns="http://www.w3.org/2000/svg"
-        preserveAspectRatio="xMidYMax slice"
-      >
-        {/* Background hills */}
-        <path
-          d="M0 78 C60 50,130 62,190 56 C250 50,310 38,375 52 L375 120 L0 120 Z"
-          fill="#8FA882"
-          fillOpacity="0.6"
-        />
-        {/* Mid layer */}
-        <path
-          d="M0 90 C50 74,110 84,170 79 C230 74,300 63,375 72 L375 120 L0 120 Z"
-          fill="#6B8A5E"
-          fillOpacity="0.8"
-        />
-        {/* Foreground terrain */}
-        <path
-          d="M0 107 C25 101,55 105,85 101 C115 95,145 100,168 95 C192 91,218 95,242 92 C270 89,315 95,375 98 L375 120 L0 120 Z"
-          fill="#4D6B46"
-        />
-
-        {/* Leash lines */}
+      <svg viewBox="0 0 375 120" width="100%" height="120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax slice">
+        <path d="M0 78 C60 50,130 62,190 56 C250 50,310 38,375 52 L375 120 L0 120 Z" fill="#8FA882" fillOpacity="0.6" />
+        <path d="M0 90 C50 74,110 84,170 79 C230 74,300 63,375 72 L375 120 L0 120 Z" fill="#6B8A5E" fillOpacity="0.8" />
+        <path d="M0 107 C25 101,55 105,85 101 C115 95,145 100,168 95 C192 91,218 95,242 92 C270 89,315 95,375 98 L375 120 L0 120 Z" fill="#4D6B46" />
         <line x1="182" y1="80" x2="158" y2="89" stroke="#26452B" strokeWidth="1.5" strokeLinecap="round" />
         <line x1="188" y1="80" x2="215" y2="89" stroke="#26452B" strokeWidth="1.5" strokeLinecap="round" />
-
-        {/* Person — head */}
         <circle cx="185" cy="69" r="5.5" fill="#26452B" />
-        {/* Person — body */}
         <rect x="182" y="75" width="6" height="13" rx="2" fill="#26452B" />
-        {/* Person — legs */}
         <line x1="183" y1="88" x2="180" y2="98" stroke="#26452B" strokeWidth="3" strokeLinecap="round" />
         <line x1="187" y1="88" x2="190" y2="98" stroke="#26452B" strokeWidth="3" strokeLinecap="round" />
-
-        {/* Left dog — body */}
         <ellipse cx="152" cy="91" rx="10" ry="5.5" fill="#26452B" />
-        {/* Left dog — head */}
         <ellipse cx="144" cy="88" rx="6" ry="5" fill="#26452B" />
-        {/* Left dog — ear */}
         <path d="M142 84 L139 79" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        {/* Left dog — legs */}
         <line x1="147" y1="96" x2="145" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
         <line x1="151" y1="96" x2="150" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
         <line x1="156" y1="96" x2="157" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
         <line x1="160" y1="96" x2="162" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        {/* Left dog — tail */}
         <path d="M162 89 C167 84,170 87,167 91" stroke="#26452B" strokeWidth="2" strokeLinecap="round" fill="none" />
-
-        {/* Right dog — body */}
         <ellipse cx="220" cy="90" rx="10" ry="5.5" fill="#26452B" />
-        {/* Right dog — head */}
         <ellipse cx="228" cy="87" rx="6" ry="5" fill="#26452B" />
-        {/* Right dog — ear */}
         <path d="M230 83 L233 78" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        {/* Right dog — legs */}
         <line x1="215" y1="95" x2="213" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
         <line x1="219" y1="95" x2="218" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
         <line x1="223" y1="95" x2="224" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
         <line x1="227" y1="95" x2="229" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        {/* Right dog — tail */}
         <path d="M211 88 C206 83,203 86,206 90" stroke="#26452B" strokeWidth="2" strokeLinecap="round" fill="none" />
       </svg>
     </div>
@@ -771,14 +518,14 @@ function ApprovalBadge({ status }: { status: string | null }) {
   if (status === 'approved') {
     bg = '#E8F0E5'; color = '#26452B'; label = 'Approved'
   } else if (status === 'approved_with_conditions') {
-    bg = '#E8F0E5'; color = '#26452B'; label = 'Approved'
+    bg = '#FEF3C7'; color = '#B45309'; label = 'Approved with conditions'
   } else if (status === 'pending') {
-    bg = '#FEF3E2'; color = '#E08A3E'; label = 'Pending review'
+    bg = '#EEE9E0'; color = '#8A7E72'; label = 'Pending review'
   } else {
-    bg = '#FBE9E3'; color = '#C1562D'; label = 'Declined'
+    bg = '#FEE2E2'; color = '#B91C1C'; label = 'Declined'
   }
   return (
-    <span style={{ backgroundColor: bg, color, borderRadius: 20, padding: '4px 12px', fontSize: 13, fontFamily: FONT, fontWeight: 600 }}>
+    <span style={{ backgroundColor: bg, color, borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT, fontWeight: 600 }}>
       {label}
     </span>
   )
@@ -788,27 +535,29 @@ function ApprovalBadge({ status }: { status: string | null }) {
 
 function ScoreField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
-    <div>
-      <label className="block text-xs text-gray-500 mb-1.5">{label}</label>
-      <div className="flex gap-2">
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', color: '#8A7E72', fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>{label}</label>
+      <div style={{ display: 'flex', gap: 8 }}>
         {[1, 2, 3, 4, 5].map(n => (
           <button
             key={n}
             type="button"
             onClick={() => onChange(n)}
-            className={`w-10 h-10 rounded-full text-sm font-medium border-2 transition-colors ${
-              value === n
-                ? 'bg-green-600 border-green-600 text-white'
-                : 'border-gray-200 text-gray-500 hover:border-green-400'
-            }`}
+            style={{
+              width: 40, height: 40, borderRadius: '50%', fontSize: 14, fontWeight: 500,
+              border: value === n ? 'none' : '1px solid #E8E2D9',
+              backgroundColor: value === n ? '#26452B' : 'white',
+              color: value === n ? 'white' : '#3B2A1F',
+              cursor: 'pointer', fontFamily: FONT,
+            }}
           >
             {n}
           </button>
         ))}
       </div>
-      <div className="flex justify-between mt-1">
-        <span className="text-[10px] text-gray-400">Poor</span>
-        <span className="text-[10px] text-gray-400">Excellent</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+        <span style={{ fontSize: 10, color: '#8A7E72', fontFamily: FONT }}>Poor</span>
+        <span style={{ fontSize: 10, color: '#8A7E72', fontFamily: FONT }}>Excellent</span>
       </div>
     </div>
   )
@@ -820,19 +569,21 @@ function YesNoField({ label, value, onChange }: {
   onChange: (v: boolean) => void
 }) {
   return (
-    <div>
-      <label className="block text-xs text-gray-500 mb-1.5">{label}</label>
-      <div className="flex gap-2">
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', color: '#8A7E72', fontSize: 12, fontFamily: FONT, marginBottom: 6 }}>{label}</label>
+      <div style={{ display: 'flex', gap: 8 }}>
         {([true, false] as const).map(b => (
           <button
             key={String(b)}
             type="button"
             onClick={() => onChange(b)}
-            className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-colors ${
-              value === b
-                ? 'border-green-500 bg-green-50 text-green-700'
-                : 'border-gray-200 text-gray-600 hover:border-gray-300'
-            }`}
+            style={{
+              flex: 1, padding: '8px', borderRadius: 10, fontSize: 14, fontWeight: 500,
+              border: value === b ? '2px solid #26452B' : '1px solid #E8E2D9',
+              backgroundColor: value === b ? '#E8F0E5' : 'white',
+              color: value === b ? '#26452B' : '#8A7E72',
+              cursor: 'pointer', fontFamily: FONT,
+            }}
           >
             {b ? 'Yes' : 'No'}
           </button>
