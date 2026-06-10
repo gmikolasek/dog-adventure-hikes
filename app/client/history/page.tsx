@@ -22,6 +22,7 @@ type TrailPackDisplay = {
   id: string
   purchaseDate: string
   expiresAt: string | null
+  dogName: string | null
   slots: HikeSlot[] // always 4: [purchase hike, credit 2, credit 3, credit 4]
 }
 
@@ -174,12 +175,12 @@ export default function HistoryPage() {
       // Trail Pack credits — all rows including historical (no active-only filter)
       const { data: creditRows } = await supabase
         .from('trail_pack_credits')
-        .select('id, credits_remaining, expires_at, created_at')
+        .select('id, credits_remaining, expires_at, created_at, dog_id')
         .eq('owner_id', session.user.id)
         .order('created_at', { ascending: true })
 
       const rawPackRows = (creditRows ?? []) as Array<{
-        id: string; credits_remaining: number; expires_at: string | null; created_at: string
+        id: string; credits_remaining: number; expires_at: string | null; created_at: string; dog_id: string | null
       }>
 
       // Deduplicate: a fast double-submit can insert two near-identical rows
@@ -245,7 +246,7 @@ export default function HistoryPage() {
           )
         }
 
-        return { id: pack.id, purchaseDate: pack.created_at, expiresAt: pack.expires_at, slots }
+        return { id: pack.id, purchaseDate: pack.created_at, expiresAt: pack.expires_at, dogName: dogNameById[pack.dog_id ?? ''] ?? null, slots }
       })
 
       // Completed + cancelled lists
@@ -374,7 +375,7 @@ export default function HistoryPage() {
                     </div>
                     <div>
                       <p style={{ color: T.brown, fontWeight: 700, fontSize: 16, fontFamily: FONT, lineHeight: 1.2 }}>
-                        Trail Pack · 4 hikes
+                        Trail Pack{pack.dogName ? ` · ${pack.dogName}` : ' · 4 hikes'}
                       </p>
                       <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
                         Purchased {formatShort(pack.purchaseDate.slice(0, 10))}

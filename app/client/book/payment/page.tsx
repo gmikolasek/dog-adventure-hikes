@@ -95,10 +95,9 @@ function PaymentInner() {
   const [ownerId, setOwnerId] = useState('')
   const [hikeDay, setHikeDay] = useState<HikeDay | null>(null)
   const [dogs, setDogs] = useState<Dog[]>([])
-  const [creditRows, setCreditRows] = useState<CreditRow[]>([])
-  const [availableCredits, setAvailableCredits] = useState(0)
+  const [dogCredits, setDogCredits] = useState<Record<string, { total: number; rows: CreditRow[] }>>({})
 
-  const [buyTrailPack, setBuyTrailPack] = useState(false)
+  const [buyTrailPack, setBuyTrailPack] = useState<Record<string, boolean>>({})
   const [confirming, setConfirming] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState('')
@@ -120,9 +119,11 @@ function PaymentInner() {
       setHikeDay(dayRow as HikeDay)
       setDogs(selectedDogs)
 
-      const credit = await getAvailableCredits(session.user.id)
-      setCreditRows(credit.rows)
-      setAvailableCredits(credit.total)
+      const creditsMap: Record<string, { total: number; rows: CreditRow[] }> = {}
+      for (const dog of selectedDogs) {
+        creditsMap[dog.id] = await getAvailableCredits(session.user.id, dog.id)
+      }
+      setDogCredits(creditsMap)
 
       setReady(true)
     }
@@ -131,13 +132,18 @@ function PaymentInner() {
   }, [router])
 
   const dogCount = dogs.length
-  const creditsToUse = Math.min(availableCredits, dogCount)
-  const dogsToCharge = dogCount - creditsToUse
-  const canBuyPack = dogsToCharge >= 1
-  const applyPack = buyTrailPack && canBuyPack
-  const total = applyPack
-    ? TRAIL_PACK_PRICE + Math.max(0, dogsToCharge - 1) * PRICE_PER_DOG
-    : dogsToCharge * PRICE_PER_DOG
+
+  const dogHasCredit = (dogId: string) => (dogCredits[dogId]?.total ?? 0) > 0
+  const dogBuysPack = (dogId: string) => (buyTrailPack[dogId] ?? false) && !dogHasCredit(dogId)
+
+  const total = dogs.reduce((sum, dog) => {
+    if (dogHasCredit(dog.id)) return sum
+    if (dogBuysPack(dog.id)) return sum + TRAIL_PACK_PRICE
+    return sum + PRICE_PER_DOG
+  }, 0)
+
+  const anyPackBought = dogs.some(d => dogBuysPack(d.id))
+  const creditsUsedCount = dogs.filter(d => dogHasCredit(d.id)).length
 
   async function confirm() {
     if (!hikeDay || confirmLock.current) return
@@ -153,32 +159,16 @@ function PaymentInner() {
       return
     }
 
-    const rows = dogs.map((dog, i) => {
-      const coveredByCredit = i < creditsToUse
-      const chargedIndex = i - creditsToUse
-      let amount_charged = 0
-      let discount_applied = 0
-      let credit_used = 0
-      if (coveredByCredit) {
-        credit_used = 1
-      } else if (applyPack && chargedIndex === 0) {
-        amount_charged = TRAIL_PACK_PRICE
-        discount_applied = TRAIL_PACK_SAVING
-      } else {
-        amount_charged = PRICE_PER_DOG
-      }
-      return {
-        dog_id: dog.id,
-        owner_id: ownerId,
-        hike_day_id: hikeDay.id,
-        status: 'confirmed',
-        pickup_method: pickup,
-        dropoff_method: dropoff,
-        amount_charged,
-        discount_applied,
-        credit_used,
-      }
-    })
+    const rows = dogs.map(dog => ({
+      dog_id: dog.id,
+      owner_id: ownerId,
+      hike_day_id: hikeDay.id,
+      status: 'confirmed',
+      pickup_method: pickup,
+      dropoff_method: dropoff,
+      amount_charged: dogHasCredit(dog.id) ? 0 : dogBuysPack(dog.id) ? TRAIL_PACK_PRICE : PRICE_PER_DOG,
+      credit_used: dogHasCredit(dog.id) ? 1 : 0,
+    }))
 
     const { error: insErr } = await supabase.from('bookings').insert(rows)
     if (insErr) {
@@ -188,8 +178,14 @@ function PaymentInner() {
       return
     }
 
-    if (creditsToUse > 0) await deductCredits(creditRows, creditsToUse)
-    if (applyPack) await addTrailPack(ownerId)
+    for (const dog of dogs) {
+      const credits = dogCredits[dog.id]
+      if (credits && credits.total > 0) {
+        await deductCredits(credits.rows, 1)
+      } else if (dogBuysPack(dog.id)) {
+        await addTrailPack(ownerId, dog.id)
+      }
+    }
 
     setConfirmed(true)
     setConfirming(false)
@@ -204,6 +200,7 @@ function PaymentInner() {
   }
 
   if (confirmed) {
+    const packDogs = dogs.filter(d => dogBuysPack(d.id))
     return (
       <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen flex flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm text-center">
@@ -215,8 +212,8 @@ function PaymentInner() {
           <h1 style={{ color: T.brown, fontWeight: 700, fontSize: 24, fontFamily: FONT, marginBottom: 8 }}>Booking confirmed</h1>
           <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT, lineHeight: 1.6, marginBottom: 32 }}>
             {hikeDay && formatFull(hikeDay.date)} · {dogCount} dog{dogCount > 1 ? 's' : ''}.
-            {applyPack && ` Your Trail Pack added ${TRAIL_PACK_CREDITS} credits.`}
-            {!applyPack && creditsToUse > 0 && ` ${creditsToUse} credit${creditsToUse > 1 ? 's' : ''} used.`}
+            {packDogs.length > 0 && ` Trail Pack added for ${packDogs.map(d => d.name).join(' and ')}.`}
+            {creditsUsedCount > 0 && ` ${creditsUsedCount} credit${creditsUsedCount > 1 ? 's' : ''} used.`}
           </p>
           <button
             onClick={() => router.push('/client/home')}
@@ -259,17 +256,20 @@ function PaymentInner() {
           <SummaryRow label="Pickup" value={pickup ?? ''} capitalize />
           <SummaryRow label="Drop-off" value={dropoff ?? ''} capitalize />
 
-          {/* Dogs */}
+          {/* Dogs — per-dog payment method */}
           <div style={{ borderTop: `1px solid ${T.divider}`, marginTop: 10, paddingTop: 10 }}>
-            {dogs.map((dog, i) => {
-              const covered = i < creditsToUse
+            {dogs.map(dog => {
+              const hasCredit = dogHasCredit(dog.id)
+              const buyPack = dogBuysPack(dog.id)
               return (
                 <div key={dog.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>{dog.name}</span>
-                  {covered ? (
+                  {hasCredit ? (
                     <span style={{ backgroundColor: T.selectedBg, color: T.forest, borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500 }}>
                       Credit applied
                     </span>
+                  ) : buyPack ? (
+                    <span style={{ color: T.brown, fontSize: 14, fontFamily: FONT }}>₮{TRAIL_PACK_PRICE.toLocaleString()}</span>
                   ) : (
                     <span style={{ color: T.brown, fontSize: 14, fontFamily: FONT }}>₮{PRICE_PER_DOG.toLocaleString()}</span>
                   )}
@@ -278,11 +278,13 @@ function PaymentInner() {
             })}
           </div>
 
-          {/* Pack discount */}
-          {applyPack && (
+          {/* Pack saving note */}
+          {anyPackBought && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ color: T.moss, fontSize: 14, fontFamily: FONT }}>Trail Pack discount</span>
-              <span style={{ color: T.moss, fontSize: 14, fontFamily: FONT }}>−₮{TRAIL_PACK_SAVING.toLocaleString()}</span>
+              <span style={{ color: T.moss, fontSize: 13, fontFamily: FONT }}>Trail Pack saving</span>
+              <span style={{ color: T.moss, fontSize: 13, fontFamily: FONT }}>
+                −₮{(TRAIL_PACK_SAVING * dogs.filter(d => dogBuysPack(d.id)).length).toLocaleString()}
+              </span>
             </div>
           )}
 
@@ -293,39 +295,42 @@ function PaymentInner() {
           </div>
         </div>
 
-        {/* ── Trail Pack notice ── */}
-        {canBuyPack && (
-          <button
-            type="button"
-            onClick={() => setBuyTrailPack(v => !v)}
-            style={{
-              width: '100%', textAlign: 'left', backgroundColor: T.packBg,
-              border: `1px solid ${T.sand}`, borderRadius: 12, padding: '12px 16px',
-              marginBottom: 12, cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'flex-start', gap: 10,
-            }}
-          >
-            <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: applyPack ? T.forest : '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-              {applyPack
-                ? <IconCheck size={13} color="#fff" />
-                : <IconTag size={14} color={T.orange} />
-              }
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT, marginBottom: 3 }}>
-                Add a Trail Pack
-              </p>
-              <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT, lineHeight: 1.5 }}>
-                4 hikes for ₮{TRAIL_PACK_PRICE.toLocaleString()} — save ₮{TRAIL_PACK_SAVING.toLocaleString()}.
-                Covers today and banks {TRAIL_PACK_CREDITS} credits for future hikes.
-              </p>
-            </div>
-          </button>
-        )}
+        {/* ── Per-dog Trail Pack options (one per dog without credits) ── */}
+        {dogs.filter(dog => !dogHasCredit(dog.id)).map(dog => {
+          const isPack = buyTrailPack[dog.id] ?? false
+          return (
+            <button
+              key={dog.id}
+              type="button"
+              onClick={() => setBuyTrailPack(v => ({ ...v, [dog.id]: !v[dog.id] }))}
+              style={{
+                width: '100%', textAlign: 'left', backgroundColor: T.packBg,
+                border: `1px solid ${T.sand}`, borderRadius: 12, padding: '12px 16px',
+                marginBottom: 12, cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'flex-start', gap: 10,
+              }}
+            >
+              <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: isPack ? T.forest : '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                {isPack
+                  ? <IconCheck size={13} color="#fff" />
+                  : <IconTag size={14} color={T.orange} />
+                }
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ color: T.brown, fontWeight: 700, fontSize: 14, fontFamily: FONT, marginBottom: 3 }}>
+                  Add a Trail Pack for {dog.name}
+                </p>
+                <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT, lineHeight: 1.5 }}>
+                  4 hikes for ₮{TRAIL_PACK_PRICE.toLocaleString()} — save ₮{TRAIL_PACK_SAVING.toLocaleString()}.
+                  Covers today and banks {TRAIL_PACK_CREDITS} credits for future hikes.
+                </p>
+              </div>
+            </button>
+          )
+        })}
 
-        {availableCredits > 0 && (
+        {creditsUsedCount > 0 && (
           <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT, marginBottom: 16, paddingLeft: 4 }}>
-            You have {availableCredits} Trail Pack credit{availableCredits > 1 ? 's' : ''}.
-            {creditsToUse > 0 && ` ${creditsToUse} will be used for this booking.`}
+            {creditsUsedCount} Trail Pack credit{creditsUsedCount > 1 ? 's' : ''} applied.
           </p>
         )}
 

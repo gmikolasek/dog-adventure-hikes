@@ -233,9 +233,12 @@ style={{
 |---|---|---|
 | `id` | uuid PK | |
 | `owner_id` | uuid FK → users | |
+| `dog_id` | uuid FK → dogs | Dog these credits belong to (per-dog scoping; migration required) |
 | `credits_remaining` | integer | |
 | `purchase_amount` | integer | |
 | `expires_at` | timestamptz | 6 months from purchase |
+
+> Credits are per-dog. Existing rows with `dog_id = NULL` are ignored by all queries (treated as legacy).
 
 ### `hike_photos`
 | Column | Type | Notes |
@@ -260,6 +263,7 @@ style={{
 - `ALTER TABLE users ADD COLUMN contract_accepted_at timestamptz;`
 - `ALTER TABLE users ADD COLUMN contract_version text;`
 - `ALTER TABLE bookings ADD COLUMN dropoff_order integer;`
+- `ALTER TABLE trail_pack_credits ADD COLUMN dog_id uuid REFERENCES dogs(id);`
 
 ---
 

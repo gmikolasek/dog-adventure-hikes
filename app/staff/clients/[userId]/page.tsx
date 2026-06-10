@@ -57,6 +57,7 @@ type PackCredit = {
   id: string
   creditsRemaining: number
   expiresAt: string | null
+  dogName: string | null
 }
 
 const APPROVAL_OPTIONS = [
@@ -120,6 +121,9 @@ export default function ClientDetail() {
       const dogList = (d ?? []) as Dog[]
       setDogs(dogList)
 
+      const dogNameById: Record<string, string> = {}
+      for (const dog of dogList) dogNameById[dog.id] = dog.name
+
       const { data: z } = await supabase
         .from('zones').select('id, name, description').order('name', { ascending: true })
       setZones((z ?? []) as Zone[])
@@ -128,16 +132,17 @@ export default function ClientDetail() {
       const nowIso = new Date().toISOString()
       const { data: creditRows } = await supabase
         .from('trail_pack_credits')
-        .select('id, credits_remaining, expires_at')
+        .select('id, credits_remaining, expires_at, dog_id')
         .eq('owner_id', userId)
         .gt('credits_remaining', 0)
         .order('created_at', { ascending: false })
       const validCredits = (creditRows ?? []).filter((r: { expires_at: string | null }) => !r.expires_at || r.expires_at > nowIso)
       setCredits(validCredits.reduce((s: number, r: { credits_remaining: number }) => s + r.credits_remaining, 0))
-      setPackCredits(validCredits.map((r: { id: string; credits_remaining: number; expires_at: string | null }) => ({
+      setPackCredits(validCredits.map((r: { id: string; credits_remaining: number; expires_at: string | null; dog_id: string | null }) => ({
         id: r.id,
         creditsRemaining: r.credits_remaining,
         expiresAt: r.expires_at,
+        dogName: r.dog_id ? (dogNameById[r.dog_id] ?? null) : null,
       })))
 
       // Booking history
@@ -156,9 +161,6 @@ export default function ClientDetail() {
           .in('id', hikeDayIds)
         const dayById: Record<string, { date: string; destination_override: string | null }> = {}
         for (const day of (dayRows ?? [])) dayById[day.id] = day
-
-        const dogNameById: Record<string, string> = {}
-        for (const dog of dogList) dogNameById[dog.id] = dog.name
 
         setBookings(
           (bRows ?? []).map((b: { id: string; dog_id: string; hike_day_id: string; status: string; amount_charged: number; credit_used: number }) => ({
@@ -566,7 +568,7 @@ export default function ClientDetail() {
                   style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px' }}
                 >
                   <p style={{ fontSize: 14, color: brown, margin: 0, fontFamily: FONT }}>
-                    {c.creditsRemaining} credit{c.creditsRemaining !== 1 ? 's' : ''} remaining
+                    {c.dogName ? `${c.dogName} — ` : ''}{c.creditsRemaining} credit{c.creditsRemaining !== 1 ? 's' : ''} remaining
                   </p>
                   {c.expiresAt && (
                     <p style={{ fontSize: 12, color: muted, margin: 0, fontFamily: FONT }}>

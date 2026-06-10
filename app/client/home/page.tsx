@@ -19,7 +19,7 @@ type BookingCard = {
   status: string
   droppedOffAt: string | null
 }
-type TrailPackSummary = { total: number; soonestExpiry: string | null }
+type DogPackSummary = { dogId: string; dogName: string; total: number; soonestExpiry: string | null }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ export default function ClientHome() {
   const [zone, setZone] = useState<Zone | null>(null)
   const [upcoming, setUpcoming] = useState<BookingCard[]>([])
   const [past, setPast] = useState<BookingCard[]>([])
-  const [trailPack, setTrailPack] = useState<TrailPackSummary | null>(null)
+  const [dogPackCredits, setDogPackCredits] = useState<DogPackSummary[]>([])
 
   useEffect(() => {
     async function load() {
@@ -186,23 +186,23 @@ export default function ClientHome() {
       }
 
       const nowIso = new Date().toISOString()
-      const { data: creditRows } = await supabase
-        .from('trail_pack_credits')
-        .select('credits_remaining, expires_at')
-        .eq('owner_id', session.user.id)
-        .gt('credits_remaining', 0)
-      const activeCredits = (creditRows ?? []).filter(
-        (r: { credits_remaining: number; expires_at: string | null }) =>
-          !r.expires_at || r.expires_at > nowIso
-      )
-      if (activeCredits.length > 0) {
-        const total = activeCredits.reduce((s: number, r: { credits_remaining: number }) => s + r.credits_remaining, 0)
-        const soonest = activeCredits
-          .map((r: { expires_at: string | null }) => r.expires_at)
-          .filter(Boolean)
-          .sort()[0] ?? null
-        setTrailPack({ total, soonestExpiry: soonest })
+      const packList: DogPackSummary[] = []
+      for (const dog of state.dogs) {
+        const { data: creditRows } = await supabase
+          .from('trail_pack_credits')
+          .select('credits_remaining, expires_at')
+          .eq('owner_id', session.user.id)
+          .eq('dog_id', dog.id)
+          .gt('credits_remaining', 0)
+        const active = ((creditRows ?? []) as Array<{ credits_remaining: number; expires_at: string | null }>)
+          .filter(r => !r.expires_at || r.expires_at > nowIso)
+        if (active.length > 0) {
+          const total = active.reduce((s, r) => s + r.credits_remaining, 0)
+          const soonest = active.map(r => r.expires_at).filter(Boolean).sort()[0] ?? null
+          packList.push({ dogId: dog.id, dogName: dog.name, total, soonestExpiry: soonest })
+        }
       }
+      setDogPackCredits(packList)
 
       setReady(true)
     }
@@ -360,28 +360,33 @@ export default function ClientHome() {
           </div>
         </div>
 
-        {/* ── Trail Pack card (hidden when no active credits) ── */}
-        {trailPack && trailPack.total > 0 && (
-          <button
-            onClick={() => router.push('/client/history')}
-            style={{ backgroundColor: T.warmSand, border: `1px solid ${T.sand}`, borderRadius: 12, padding: '12px 14px', marginBottom: 20, width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
-          >
-            <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <IconTag size={18} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p style={{ color: T.orange, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>Trail Pack</p>
-              <p style={{ color: T.brown, fontWeight: 700, fontSize: 18, fontFamily: FONT }}>
-                {trailPack.total} credit{trailPack.total !== 1 ? 's' : ''} remaining
-              </p>
-              {trailPack.soonestExpiry && (
-                <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
-                  Expires {new Date(trailPack.soonestExpiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </p>
-              )}
-            </div>
-            <span style={{ color: T.orange, fontSize: 13, fontFamily: FONT, flexShrink: 0 }}>History →</span>
-          </button>
+        {/* ── Trail Pack cards (one per dog with credits) ── */}
+        {dogPackCredits.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            {dogPackCredits.map(dp => (
+              <button
+                key={dp.dogId}
+                onClick={() => router.push('/client/history')}
+                style={{ backgroundColor: T.warmSand, border: `1px solid ${T.sand}`, borderRadius: 12, padding: '12px 14px', width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <IconTag size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p style={{ color: T.orange, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>Trail Pack · {dp.dogName}</p>
+                  <p style={{ color: T.brown, fontWeight: 700, fontSize: 18, fontFamily: FONT }}>
+                    {dp.total} credit{dp.total !== 1 ? 's' : ''} remaining
+                  </p>
+                  {dp.soonestExpiry && (
+                    <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                      Expires {new Date(dp.soonestExpiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+                <span style={{ color: T.orange, fontSize: 13, fontFamily: FONT, flexShrink: 0 }}>History →</span>
+              </button>
+            ))}
+          </div>
         )}
 
         {/* ── Upcoming hikes section ── */}

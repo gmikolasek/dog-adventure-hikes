@@ -99,12 +99,13 @@ export function spotsLeft(day: HikeDay, bookedCounts: Record<string, number>): n
 // ---- Trail Pack credits -----------------------------------------------------
 export type CreditRow = { id: string; credits_remaining: number; expires_at: string | null }
 
-export async function getAvailableCredits(ownerId: string): Promise<{ total: number; rows: CreditRow[] }> {
+export async function getAvailableCredits(ownerId: string, dogId: string): Promise<{ total: number; rows: CreditRow[] }> {
   const nowIso = new Date().toISOString()
   const { data } = await supabase
     .from('trail_pack_credits')
     .select('id, credits_remaining, expires_at')
     .eq('owner_id', ownerId)
+    .eq('dog_id', dogId)
     .gt('credits_remaining', 0)
   const rows = ((data ?? []) as CreditRow[])
     .filter(r => !r.expires_at || r.expires_at > nowIso)
@@ -126,12 +127,13 @@ export async function deductCredits(rows: CreditRow[], n: number): Promise<void>
   }
 }
 
-// Add a freshly purchased Trail Pack (3 banked credits) to the account.
-export async function addTrailPack(ownerId: string): Promise<void> {
+// Add a freshly purchased Trail Pack (3 banked credits) to the account, scoped to a specific dog.
+export async function addTrailPack(ownerId: string, dogId: string): Promise<void> {
   const expires = new Date()
   expires.setMonth(expires.getMonth() + CREDIT_VALIDITY_MONTHS)
   await supabase.from('trail_pack_credits').insert({
     owner_id: ownerId,
+    dog_id: dogId,
     credits_remaining: TRAIL_PACK_CREDITS,
     purchase_amount: TRAIL_PACK_PRICE,
     expires_at: expires.toISOString(),
