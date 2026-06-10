@@ -33,6 +33,8 @@ type Dog = {
   airtag_confirmed: boolean | null
   ecollar: boolean | null
   photo_url: string | null
+  approval_status: string
+  alreadyApproved: boolean
 }
 
 type Owner = {
@@ -40,6 +42,7 @@ type Owner = {
   name: string | null
   phone: string | null
   address: string | null
+  zone_id: string | null
 }
 
 export default function ApprovalQueue() {
@@ -62,25 +65,49 @@ export default function ApprovalQueue() {
       if (profile?.role !== 'staff') { router.push('/onboarding'); return }
       setStaffId(session.user.id)
 
-      const { data: pending } = await supabase
+      // Group 1 — pending dogs
+      const { data: pendingRows } = await supabase
         .from('dogs')
         .select('*')
         .eq('approval_status', 'pending')
         .order('created_at', { ascending: true })
 
-      const list = (pending ?? []) as Dog[]
-      setDogs(list)
+      // Group 2 — approved dogs that may still need a zone
+      const { data: approvedRows } = await supabase
+        .from('dogs')
+        .select('*')
+        .in('approval_status', ['approved', 'approved_with_conditions'])
+        .order('created_at', { ascending: true })
 
-      const ownerIds = [...new Set(list.map(d => d.owner_id))]
-      if (ownerIds.length) {
+      // Fetch owners for all dogs to check zone_id
+      const allOwnerIds = [...new Set([
+        ...(pendingRows ?? []).map((d: { owner_id: string }) => d.owner_id),
+        ...(approvedRows ?? []).map((d: { owner_id: string }) => d.owner_id),
+      ])]
+
+      const map: Record<string, Owner> = {}
+      if (allOwnerIds.length) {
         const { data: ownerRows } = await supabase
           .from('users')
-          .select('id, name, phone, address')
-          .in('id', ownerIds)
-        const map: Record<string, Owner> = {}
+          .select('id, name, phone, address, zone_id')
+          .in('id', allOwnerIds)
         for (const o of (ownerRows ?? []) as Owner[]) map[o.id] = o
-        setOwners(map)
       }
+      setOwners(map)
+
+      const group1 = (pendingRows ?? []).map((d: Record<string, unknown>) => ({
+        ...(d as Omit<Dog, 'alreadyApproved'>),
+        alreadyApproved: false,
+      }))
+
+      const group2 = (approvedRows ?? [])
+        .filter((d: { owner_id: string }) => map[d.owner_id]?.zone_id == null)
+        .map((d: Record<string, unknown>) => ({
+          ...(d as Omit<Dog, 'alreadyApproved'>),
+          alreadyApproved: true,
+        }))
+
+      setDogs([...group1, ...group2] as Dog[])
 
       setReady(true)
     }
@@ -123,7 +150,9 @@ export default function ApprovalQueue() {
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: brown, margin: 0 }}>Dog approvals</h1>
           <p style={{ fontSize: 14, color: muted, margin: '4px 0 0' }}>
-            {dogs.length} dog{dogs.length !== 1 ? 's' : ''} awaiting review
+            {dogs.length > 0 && dogs.every(d => d.alreadyApproved)
+              ? `${dogs.length} dog${dogs.length !== 1 ? 's' : ''} approved — zone assignment needed`
+              : `${dogs.length} dog${dogs.length !== 1 ? 's' : ''} awaiting review`}
           </p>
         </div>
 
@@ -180,7 +209,9 @@ function DogReviewCard({ dog, owner, staffId, onResolved }: {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [resolvedStatus, setResolvedStatus] = useState<'approved' | 'approved_with_conditions' | null>(null)
+  const [resolvedStatus, setResolvedStatus] = useState<'approved' | 'approved_with_conditions' | null>(
+    dog.alreadyApproved ? (dog.approval_status as 'approved' | 'approved_with_conditions') : null
+  )
 
   async function approve(status: 'approved' | 'approved_with_conditions') {
     setBusy(true)
