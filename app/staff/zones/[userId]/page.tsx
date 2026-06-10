@@ -4,6 +4,19 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
+const FONT = "'Noto Sans', system-ui, sans-serif"
+const forest = '#26452B'
+const brown = '#3B2A1F'
+const muted = '#8A7E72'
+const cardBorder = '#E8E2D9'
+const bg = '#F5F0E8'
+const badgeBg = '#EEE9E0'
+const completeBg = '#E8F0E5'
+const red = '#ef4444'
+
+// suppress unused-variable warnings for tokens not used directly in JSX
+void badgeBg
+
 type Client = {
   id: string
   name: string | null
@@ -83,78 +96,105 @@ export default function AssignZone() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-6">
-        <p className="text-sm text-gray-400">Loading…</p>
+      <main className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: bg, fontFamily: FONT }}>
+        <p style={{ fontSize: 14, color: muted }}>Loading…</p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
+    <main className="min-h-screen px-6 py-10" style={{ backgroundColor: bg, fontFamily: FONT }}>
       <div className="w-full max-w-sm mx-auto">
 
-        <button
-          onClick={() => router.push('/staff/approvals')}
-          className="text-sm text-gray-500 hover:text-gray-700 mb-6"
-        >
-          ← Back to queue
-        </button>
+        {/* Back button */}
+        <div style={{ marginBottom: 24 }}>
+          <button
+            onClick={() => router.push('/staff/approvals')}
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              backgroundColor: cardBorder, border: 'none',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 12L6 8l4-4" stroke={forest} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
 
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-            <span className="text-3xl">📍</span>
+        {/* Header */}
+        <div className="text-center" style={{ marginBottom: 24 }}>
+          <div
+            className="inline-flex items-center justify-center"
+            style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: completeBg, marginBottom: 16 }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#4D6B46">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+            </svg>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Assign a zone</h1>
-          <p className="text-gray-500 mt-1 text-sm">
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: brown, fontFamily: FONT, margin: '0 0 6px' }}>Assign a zone</h1>
+          <p style={{ fontSize: 14, color: muted, fontFamily: FONT, margin: 0 }}>
             Dog approved — now place {client?.name ?? 'this client'} in a hiking zone
           </p>
         </div>
 
-        {/* Client address */}
-        <div className="rounded-2xl border border-gray-200 p-4 mb-6">
-          <p className="text-xs text-gray-400 mb-1">Client</p>
-          <p className="text-sm font-medium text-gray-900">{client?.name ?? 'Unknown'}</p>
-          {client?.phone && <p className="text-xs text-gray-500">{client.phone}</p>}
-          <p className="text-xs text-gray-400 mt-3 mb-1">Pickup address</p>
-          <p className="text-sm text-gray-700 leading-relaxed">
-            {client?.address || <span className="text-gray-400">No address on file</span>}
+        {/* Client card */}
+        <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 24 }}>
+          <p style={{ fontSize: 11, color: muted, fontFamily: FONT, margin: '0 0 4px' }}>Client</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: brown, fontFamily: FONT, margin: 0 }}>{client?.name ?? 'Unknown'}</p>
+          {client?.phone && (
+            <p style={{ fontSize: 12, color: muted, fontFamily: FONT, margin: '2px 0 0' }}>{client.phone}</p>
+          )}
+          <p style={{ fontSize: 11, color: muted, fontFamily: FONT, margin: '12px 0 4px' }}>Pickup address</p>
+          <p style={{ fontSize: 14, color: brown, fontFamily: FONT, margin: 0, lineHeight: 1.5 }}>
+            {client?.address || <span style={{ color: muted }}>No address on file</span>}
           </p>
         </div>
 
         {/* Zone picker */}
-        <label className="block text-sm font-medium text-gray-700 mb-3">Hiking zone</label>
+        <label style={{ fontSize: 13, fontWeight: 600, color: brown, fontFamily: FONT, display: 'block', marginBottom: 12 }}>
+          Hiking zone
+        </label>
         {zones.length === 0 ? (
-          <p className="text-sm text-gray-400 mb-6">
+          <p style={{ fontSize: 14, color: muted, fontFamily: FONT, marginBottom: 24 }}>
             No zones configured yet. Add zones in Supabase before assigning.
           </p>
         ) : (
-          <div className="space-y-2 mb-6">
+          <div className="space-y-2" style={{ marginBottom: 24 }}>
             {zones.map(zone => (
               <button
                 key={zone.id}
                 type="button"
                 onClick={() => setSelected(zone.id)}
-                className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${
-                  selected === zone.id
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-green-300'
-                }`}
+                style={{
+                  width: '100%', textAlign: 'left', borderRadius: 12, padding: 12, cursor: 'pointer',
+                  backgroundColor: selected === zone.id ? completeBg : 'white',
+                  border: selected === zone.id ? `2px solid ${forest}` : `1px solid ${cardBorder}`,
+                }}
               >
-                <span className="block text-sm font-medium text-gray-900">{zone.name}</span>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: brown, fontFamily: FONT }}>{zone.name}</span>
                 {zone.description && (
-                  <span className="block text-xs text-gray-500 mt-0.5">{zone.description}</span>
+                  <span style={{ display: 'block', fontSize: 12, color: muted, fontFamily: FONT, marginTop: 2 }}>{zone.description}</span>
                 )}
               </button>
             ))}
           </div>
         )}
 
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        {error && (
+          <p style={{ fontSize: 14, color: red, fontFamily: FONT, marginBottom: 16 }}>{error}</p>
+        )}
 
         <button
           onClick={confirm}
           disabled={!selected || saving}
-          className="w-full bg-green-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
+          style={{
+            width: '100%', backgroundColor: forest, color: 'white', borderRadius: 12,
+            fontWeight: 600, border: 'none', padding: '14px', fontSize: 14,
+            fontFamily: FONT, cursor: (!selected || saving) ? 'not-allowed' : 'pointer',
+            opacity: (!selected || saving) ? 0.5 : 1,
+          }}
         >
           {saving ? 'Saving…' : 'Confirm zone & activate client →'}
         </button>
