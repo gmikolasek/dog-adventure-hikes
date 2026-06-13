@@ -406,6 +406,7 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 - Client detail status badge stale after inline approval edit — `isActive` derived from `dogs` state
 - Gana 2 accidental pickup — nulled via `UPDATE bookings SET picked_up_at = NULL WHERE dog_id = (SELECT id FROM dogs WHERE name = 'Gana 2') AND picked_up_at IS NOT NULL`
 - Notification buttons deferred — replaced placeholder with real WhatsApp per-dog notification buttons (30 min / 15 min / 5 min / Arrived / On our way) on pickup and dropoff cards, plus "Hiking finished" broadcast button on Hike tab; implemented via `/api/notify` route + WhatsApp Cloud API
+- Staff can start future hikes early — "Start hike" button on `/staff/hikes/[date]` now gated: disabled with label "Hike not yet available — opens at 2am" until 2am ULT (18:00 UTC the prior day) on the scheduled hike date
 
 ---
 

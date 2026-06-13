@@ -237,6 +237,12 @@ export default function HikeDetailPage() {
 
   const isRunDay = date >= todayIso()
 
+  const canStartRun = (() => {
+    const [y, m, d] = date.split('-').map(Number)
+    const earliest = new Date(Date.UTC(y, m - 1, d - 1, 18, 0, 0)) // 2am ULT = 18:00 UTC prior day
+    return Date.now() >= earliest.getTime()
+  })()
+
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#F5F0E8', fontFamily: FONT, padding: '40px 24px 60px' }}>
       <div style={{ width: '100%', maxWidth: 384, margin: '0 auto' }}>
@@ -275,11 +281,12 @@ export default function HikeDetailPage() {
             </button>
           ) : (
             <button
-              onClick={() => router.push(`/staff/hikes/${date}/run`)}
-              style={{ width: '100%', backgroundColor: '#26452B', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: FONT }}
+              onClick={canStartRun ? () => router.push(`/staff/hikes/${date}/run`) : undefined}
+              disabled={!canStartRun}
+              style={{ width: '100%', backgroundColor: '#26452B', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: canStartRun ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 700, fontFamily: FONT, opacity: canStartRun ? 1 : 0.5 }}
             >
               <MountainIcon />
-              <span>Start hike</span>
+              <span>{canStartRun ? 'Start hike' : 'Hike not yet available — opens at 2am'}</span>
             </button>
           )
         )}
