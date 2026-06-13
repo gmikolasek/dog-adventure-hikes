@@ -359,10 +359,11 @@ export default function RunPage() {
     const items = Array.from(pending)
     const [moved] = items.splice(result.source.index, 1)
     items.splice(result.destination.index, 0, moved)
-    setBookings([...items, ...rest])
+    const reordered = items.map((b, i) => ({ ...b, dropoffOrder: i }))
+    setBookings([...reordered, ...rest])
     setSavingDropoffOrder(true)
     await Promise.all(
-      items.map((b, i) => supabase.from('bookings').update({ dropoff_order: i }).eq('id', b.id))
+      reordered.map((b, i) => supabase.from('bookings').update({ dropoff_order: i }).eq('id', b.id))
     )
     setSavingDropoffOrder(false)
   }
