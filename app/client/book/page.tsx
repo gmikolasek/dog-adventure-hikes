@@ -351,7 +351,7 @@ export default function BookHike() {
           <StepLabel n={3} label="Pickup method" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <MethodCard active={pickup === 'curbside'} onClick={() => setPickup('curbside')}
-              title="Curbside" desc="You meet the van at the kerb." />
+              title="Curbside" desc="You meet the van at the curb." />
             <MethodCard active={pickup === 'home'} onClick={() => setPickup('home')}
               title="Home pickup" desc="The van comes to your door — someone must be present." />
           </div>
@@ -362,7 +362,7 @@ export default function BookHike() {
           <StepLabel n={4} label="Drop-off method" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <MethodCard active={dropoff === 'curbside'} onClick={() => setDropoff('curbside')}
-              title="Curbside" desc="Meet the van at the kerb on return." />
+              title="Curbside" desc="Meet the van at the curb on return." />
             <MethodCard active={dropoff === 'home'} onClick={() => setDropoff('home')}
               title="Home drop-off" desc="The van returns your dog to your door." />
           </div>

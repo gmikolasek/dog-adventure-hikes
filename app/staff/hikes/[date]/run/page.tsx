@@ -999,7 +999,9 @@ export default function RunPage() {
 
           {allDroppedOff && (
             <div style={{ backgroundColor: '#E8F0E5', border: '1px solid #C5D9BF', borderRadius: 16, padding: 24, marginBottom: 12, textAlign: 'center' }}>
-              <p style={{ fontSize: 28, margin: '0 0 8px' }}>🎉</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 8 }}>
+                <PawDark size={20} /><PawDark size={20} /><PawDark size={20} />
+              </div>
               <p style={{ fontSize: 18, fontWeight: 700, color: '#26452B', fontFamily: FONT, margin: '0 0 4px' }}>All dogs home!</p>
               <p style={{ fontSize: 14, color: '#4D6B46', fontFamily: FONT, margin: 0 }}>Great hike today.</p>
             </div>
