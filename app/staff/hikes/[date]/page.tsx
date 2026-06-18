@@ -266,29 +266,35 @@ export default function HikeDetailPage() {
         </div>
 
         {/* Start hike / in-progress / complete button */}
-        {hike && hike.bookings.length > 0 && isRunDay && dropoffStats && (
-          dropoffStats.complete === dropoffStats.total ? (
+        {hike && hike.bookings.length > 0 && (
+          !isRunDay ? (
             <div style={{ width: '100%', backgroundColor: '#E8F0E5', border: '1px solid #26452B', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#26452B', fontFamily: FONT }}>Hike complete ✓</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#26452B', fontFamily: FONT }}>Hike completed ✓</span>
             </div>
-          ) : dropoffStats.complete > 0 ? (
-            <button
-              onClick={() => router.push(`/staff/hikes/${date}/run`)}
-              style={{ width: '100%', backgroundColor: '#2B5BA8', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: FONT }}
-            >
-              <MountainIcon />
-              <span>Hike in progress · {dropoffStats.complete} of {dropoffStats.total} dropped off</span>
-            </button>
-          ) : (
-            <button
-              onClick={canStartRun ? () => router.push(`/staff/hikes/${date}/run`) : undefined}
-              disabled={!canStartRun}
-              style={{ width: '100%', backgroundColor: '#26452B', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: canStartRun ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 700, fontFamily: FONT, opacity: canStartRun ? 1 : 0.5 }}
-            >
-              <MountainIcon />
-              <span>{canStartRun ? 'Start hike' : 'Hike not yet available — opens at 2am'}</span>
-            </button>
-          )
+          ) : dropoffStats ? (
+            dropoffStats.complete === dropoffStats.total ? (
+              <div style={{ width: '100%', backgroundColor: '#E8F0E5', border: '1px solid #26452B', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#26452B', fontFamily: FONT }}>Hike complete ✓</span>
+              </div>
+            ) : dropoffStats.complete > 0 ? (
+              <button
+                onClick={() => router.push(`/staff/hikes/${date}/run`)}
+                style={{ width: '100%', backgroundColor: '#2B5BA8', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: FONT }}
+              >
+                <MountainIcon />
+                <span>Hike in progress · {dropoffStats.complete} of {dropoffStats.total} dropped off</span>
+              </button>
+            ) : (
+              <button
+                onClick={canStartRun ? () => router.push(`/staff/hikes/${date}/run`) : undefined}
+                disabled={!canStartRun}
+                style={{ width: '100%', backgroundColor: '#26452B', color: 'white', borderRadius: 12, padding: '14px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: canStartRun ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 700, fontFamily: FONT, opacity: canStartRun ? 1 : 0.5 }}
+              >
+                <MountainIcon />
+                <span>{canStartRun ? 'Start hike' : 'Hike not yet available — opens at 2am'}</span>
+              </button>
+            )
+          ) : null
         )}
 
         {!hike || hike.bookings.length === 0 ? (
@@ -378,23 +384,22 @@ export default function HikeDetailPage() {
 
             {/* Upload form */}
             {showUploadForm && (
-              <div className="rounded-2xl border border-gray-200 p-4 mb-4 space-y-4" style={{ backgroundColor: 'white' }}>
+              <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-2">Photo</label>
+                  <label style={{ display: 'block', fontSize: 11, color: '#8A7E72', fontFamily: FONT, marginBottom: 8 }}>Photo</label>
                   <input
                     type="file" accept="image/*" onChange={handleFileChange}
-                    className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-green-50 file:text-green-700"
+                    style={{ width: '100%', fontSize: 13, color: '#3B2A1F', fontFamily: FONT }}
                   />
                   {uploadPreview && (
-                    <div className="mt-3 w-full rounded-xl bg-cover bg-center" style={{ backgroundImage: `url(${uploadPreview})`, height: 160 }} />
+                    <div style={{ marginTop: 12, width: '100%', borderRadius: 10, backgroundImage: `url(${uploadPreview})`, backgroundSize: 'cover', backgroundPosition: 'center', height: 160 }} />
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-2">Tag a dog (optional)</label>
+                  <label style={{ display: 'block', fontSize: 11, color: '#8A7E72', fontFamily: FONT, marginBottom: 8 }}>Tag a dog (optional)</label>
                   <select
                     value={uploadDogId} onChange={e => setUploadDogId(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    style={{ color: '#171717', backgroundColor: 'white' }}
+                    style={{ width: '100%', borderRadius: 10, border: '1px solid #E8E2D9', padding: '12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box' } as React.CSSProperties}
                   >
                     <option value="">Group photo — no specific dog</option>
                     {(hike.bookings ?? []).map(b => (
@@ -403,18 +408,17 @@ export default function HikeDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-2">Caption (optional)</label>
+                  <label style={{ display: 'block', fontSize: 11, color: '#8A7E72', fontFamily: FONT, marginBottom: 8 }}>Caption (optional)</label>
                   <input
                     type="text" value={uploadCaption} onChange={e => setUploadCaption(e.target.value)}
                     placeholder="What are they up to?"
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    style={{ color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white' }}
+                    style={{ width: '100%', borderRadius: 10, border: '1px solid #E8E2D9', padding: '12px', fontSize: 14, color: '#171717', WebkitTextFillColor: '#171717', backgroundColor: 'white', outline: 'none', fontFamily: FONT, boxSizing: 'border-box' }}
                   />
                 </div>
-                {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+                {uploadError && <p style={{ fontSize: 11, color: '#ef4444', fontFamily: FONT }}>{uploadError}</p>}
                 <button
                   onClick={handleUpload} disabled={!uploadFile || uploading}
-                  className="w-full bg-green-600 text-white py-3 rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                  style={{ width: '100%', backgroundColor: '#26452B', color: 'white', borderRadius: 12, padding: '14px', fontFamily: FONT, fontWeight: 600, fontSize: 14, border: 'none', cursor: !uploadFile || uploading ? 'not-allowed' : 'pointer', opacity: !uploadFile || uploading ? 0.5 : 1 }}
                 >
                   {uploading ? 'Uploading…' : 'Upload photo'}
                 </button>
@@ -423,21 +427,21 @@ export default function HikeDetailPage() {
 
             {/* Photo grid */}
             {photos.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {photos.map(p => (
-                  <div key={p.id} className="relative">
-                    <div className="w-full rounded-xl bg-cover bg-center bg-gray-100" style={{ backgroundImage: `url(${getPhotoUrl(p.storagePath)})`, height: 120 }} />
+                  <div key={p.id} style={{ position: 'relative' }}>
+                    <div style={{ width: '100%', borderRadius: 10, backgroundImage: `url(${getPhotoUrl(p.storagePath)})`, backgroundSize: 'cover', backgroundPosition: 'center', height: 120, backgroundColor: '#EEE9E0' }} />
                     <button
                       onClick={() => setConfirmDeleteId(p.id)}
-                      className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center text-white text-xs hover:bg-black/70"
+                      style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.5)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', fontSize: 12 }}
                       aria-label="Delete photo"
                     >
                       🗑
                     </button>
                     {(p.dogId && dogById[p.dogId]) && (
-                      <p className="text-[10px] text-green-700 font-medium mt-1 truncate">{dogById[p.dogId]}</p>
+                      <p style={{ fontSize: 10, color: '#26452B', fontWeight: 600, fontFamily: FONT, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dogById[p.dogId]}</p>
                     )}
-                    {p.caption && <p className="text-[10px] text-gray-500 truncate">{p.caption}</p>}
+                    {p.caption && <p style={{ fontSize: 10, color: '#8A7E72', fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.caption}</p>}
                   </div>
                 ))}
               </div>
@@ -453,18 +457,21 @@ export default function HikeDetailPage() {
 
       {/* Delete confirmation overlay */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
-          <div className="w-full bg-white rounded-t-3xl p-6 max-w-sm mx-auto">
-            <p className="text-base font-semibold text-gray-900 mb-2">Delete this photo?</p>
-            <p className="text-sm text-gray-500 mb-6">This will permanently remove the photo from storage and cannot be undone.</p>
-            {deleteError && <p className="text-xs text-red-500 mb-4">{deleteError}</p>}
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ width: '100%', backgroundColor: 'white', borderRadius: '24px 24px 0 0', padding: 24, maxWidth: 384, margin: '0 auto' }}>
+            <p style={{ fontSize: 16, fontWeight: 600, color: '#3B2A1F', fontFamily: FONT, marginBottom: 8 }}>Delete this photo?</p>
+            <p style={{ fontSize: 14, color: '#8A7E72', fontFamily: FONT, marginBottom: 24 }}>This will permanently remove the photo from storage and cannot be undone.</p>
+            {deleteError && <p style={{ fontSize: 12, color: '#ef4444', fontFamily: FONT, marginBottom: 16 }}>{deleteError}</p>}
             <button
               onClick={() => handleDeletePhoto(confirmDeleteId)} disabled={deleting}
-              className="w-full bg-red-600 text-white py-4 rounded-2xl text-base font-semibold mb-3 disabled:opacity-50"
+              style={{ width: '100%', backgroundColor: '#ef4444', color: 'white', borderRadius: 16, padding: '16px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.5 : 1, marginBottom: 12 }}
             >
               {deleting ? 'Deleting…' : 'Delete photo'}
             </button>
-            <button onClick={() => setConfirmDeleteId(null)} className="w-full py-4 rounded-2xl text-base font-medium text-gray-600">
+            <button
+              onClick={() => setConfirmDeleteId(null)}
+              style={{ width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 500, color: '#8A7E72', fontFamily: FONT, backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
               Cancel
             </button>
           </div>
