@@ -142,7 +142,12 @@ export default function ClientProfile() {
         .eq('owner_id', session.user.id)
         .order('created_at', { ascending: true })
 
-      setDogs((dogRows ?? []) as DogFull[])
+      const loaded = (dogRows ?? []) as DogFull[]
+      setDogs(loaded)
+      if (loaded.length === 1) {
+        setEditingDogId(loaded[0].id)
+        setEditForm(initForm(loaded[0]))
+      }
       setReady(true)
     }
     load()
@@ -284,7 +289,16 @@ export default function ClientProfile() {
             </svg>
           </button>
           <h1 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 18 }}>My Dogs</h1>
-          <div style={{ width: 36 }} />
+          {dogs.length === 1 ? (
+            <button
+              onClick={() => router.push('/onboarding/dog?new=1')}
+              style={{ backgroundColor: '#EEE9E0', color: T.forest, borderRadius: 20, padding: '5px 12px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: FONT }}
+            >
+              + Add dog
+            </button>
+          ) : (
+            <div style={{ width: 36 }} />
+          )}
         </div>
 
         {/* ── Status messages ── */}
@@ -296,7 +310,7 @@ export default function ClientProfile() {
         {dogs.length === 0 ? (
           <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT, textAlign: 'center', padding: '32px 0' }}>No dog profile yet.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
+          <div style={dogs.length === 1 ? { marginBottom: 16 } : { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
             {dogs.map(dog => {
               const isUploading = uploadingDogId === dog.id
               const displayed = (photoPreview?.dogId === dog.id ? photoPreview.url : null) ?? dog.photo_url
@@ -450,13 +464,15 @@ export default function ClientProfile() {
           </div>
         )}
 
-        {/* ── Add a dog ── */}
-        <button
-          onClick={() => router.push('/onboarding/dog?new=1')}
-          style={{ width: '100%', backgroundColor: 'white', border: `1px solid ${T.cardBorder}`, color: T.forest, borderRadius: 12, padding: '12px 16px', fontSize: 14, fontFamily: FONT, fontWeight: 600, cursor: 'pointer', marginBottom: 16 }}
-        >
-          + Add a dog
-        </button>
+        {/* ── Add a dog (multi-dog only) ── */}
+        {dogs.length !== 1 && (
+          <button
+            onClick={() => router.push('/onboarding/dog?new=1')}
+            style={{ width: '100%', backgroundColor: 'white', border: `1px solid ${T.cardBorder}`, color: T.forest, borderRadius: 12, padding: '12px 16px', fontSize: 14, fontFamily: FONT, fontWeight: 600, cursor: 'pointer', marginBottom: 16 }}
+          >
+            + Add a dog
+          </button>
+        )}
 
       </div>
 
@@ -477,34 +493,27 @@ export default function ClientProfile() {
 // ─── Decorative footer SVG ────────────────────────────────────────────────────
 
 function DecorativeFooter() {
+  const paws = [
+    { x: 35,  y: 52, rot: -20 },
+    { x: 95,  y: 72, rot:  15 },
+    { x: 160, y: 46, rot: -10 },
+    { x: 225, y: 74, rot:  30 },
+    { x: 295, y: 50, rot: -25 },
+    { x: 348, y: 68, rot:  10 },
+  ]
   return (
     <div style={{ marginTop: 24, width: '100%', lineHeight: 0 }}>
-      <svg viewBox="0 0 375 120" width="100%" height="120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax slice">
-        <path d="M0 78 C60 50,130 62,190 56 C250 50,310 38,375 52 L375 120 L0 120 Z" fill="#8FA882" fillOpacity="0.6" />
-        <path d="M0 90 C50 74,110 84,170 79 C230 74,300 63,375 72 L375 120 L0 120 Z" fill="#6B8A5E" fillOpacity="0.8" />
-        <path d="M0 107 C25 101,55 105,85 101 C115 95,145 100,168 95 C192 91,218 95,242 92 C270 89,315 95,375 98 L375 120 L0 120 Z" fill="#4D6B46" />
-        <line x1="182" y1="80" x2="158" y2="89" stroke="#26452B" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="188" y1="80" x2="215" y2="89" stroke="#26452B" strokeWidth="1.5" strokeLinecap="round" />
-        <circle cx="185" cy="69" r="5.5" fill="#26452B" />
-        <rect x="182" y="75" width="6" height="13" rx="2" fill="#26452B" />
-        <line x1="183" y1="88" x2="180" y2="98" stroke="#26452B" strokeWidth="3" strokeLinecap="round" />
-        <line x1="187" y1="88" x2="190" y2="98" stroke="#26452B" strokeWidth="3" strokeLinecap="round" />
-        <ellipse cx="152" cy="91" rx="10" ry="5.5" fill="#26452B" />
-        <ellipse cx="144" cy="88" rx="6" ry="5" fill="#26452B" />
-        <path d="M142 84 L139 79" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="147" y1="96" x2="145" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="151" y1="96" x2="150" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="156" y1="96" x2="157" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="160" y1="96" x2="162" y2="103" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <path d="M162 89 C167 84,170 87,167 91" stroke="#26452B" strokeWidth="2" strokeLinecap="round" fill="none" />
-        <ellipse cx="220" cy="90" rx="10" ry="5.5" fill="#26452B" />
-        <ellipse cx="228" cy="87" rx="6" ry="5" fill="#26452B" />
-        <path d="M230 83 L233 78" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="215" y1="95" x2="213" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="219" y1="95" x2="218" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="223" y1="95" x2="224" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <line x1="227" y1="95" x2="229" y2="102" stroke="#26452B" strokeWidth="2" strokeLinecap="round" />
-        <path d="M211 88 C206 83,203 86,206 90" stroke="#26452B" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <svg viewBox="0 0 375 110" width="100%" height="110" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet">
+        <path d="M0 30 C70 10,160 24,260 13 C312 7,348 19,375 15 L375 110 L0 110 Z" fill="#26452B" />
+        {paws.map((p, i) => (
+          <g key={i} transform={`translate(${p.x},${p.y}) rotate(${p.rot}) scale(0.833) translate(-12,-12)`}>
+            <circle cx="5.5"  cy="5.5" r="2.5" fill="rgba(255,255,255,0.25)" />
+            <circle cx="18.5" cy="5.5" r="2.5" fill="rgba(255,255,255,0.25)" />
+            <circle cx="3.5"  cy="11"  r="2"   fill="rgba(255,255,255,0.25)" />
+            <circle cx="20.5" cy="11"  r="2"   fill="rgba(255,255,255,0.25)" />
+            <path d="M12 13c-2.5 0-6 2.5-6 6 0 1.5 1 2 2 2h8c1 0 2-.5 2-2 0-3.5-3.5-6-6-6z" fill="rgba(255,255,255,0.25)" />
+          </g>
+        ))}
       </svg>
     </div>
   )
