@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getClients, getWeeklyMetrics, getUpcomingHikes, type ClientRow, type WeeklyMetrics, type HikeDetail } from '@/lib/adminData'
+import { getClients, getWeeklyMetrics, type ClientRow, type WeeklyMetrics } from '@/lib/adminData'
 import { exportClientsToExcel } from '@/lib/excelExport'
-import { formatShort } from '@/lib/booking'
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const T = {
@@ -87,10 +86,11 @@ function IconChevronRight({ size = 16, color = 'currentColor' }: { size?: number
     </svg>
   )
 }
-function IconCheck({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+function IconMountain({ size = 18, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 20 9 9 13 14 16 11 21 20"/>
+      <line x1="3" y1="20" x2="21" y2="20"/>
     </svg>
   )
 }
@@ -112,8 +112,6 @@ export default function StaffDashboard() {
   const [staffName, setStaffName] = useState('')
   const [clients, setClients] = useState<ClientRow[]>([])
   const [metrics, setMetrics] = useState<WeeklyMetrics>({ hikesThisWeek: 0, revenueThisWeek: 0, bookingsCount: 0 })
-  const [upcomingHikes, setUpcomingHikes] = useState<HikeDetail[]>([])
-  const [dropoffStatsByDay, setDropoffStatsByDay] = useState<Record<string, { total: number; complete: number }>>({})
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -129,32 +127,12 @@ export default function StaffDashboard() {
       if (profile?.role !== 'staff') { router.push('/onboarding'); return }
       setStaffName(profile.name ?? '')
 
-      const [clientsData, metricsData, hikesData] = await Promise.all([
+      const [clientsData, metricsData] = await Promise.all([
         getClients(),
         getWeeklyMetrics(),
-        getUpcomingHikes(2),
       ])
       setClients(clientsData)
       setMetrics(metricsData)
-      setUpcomingHikes(hikesData)
-
-      if (hikesData.length) {
-        const dayIds = hikesData.map(h => h.hikeDayId)
-        const { data: dropoffRows } = await supabase
-          .from('bookings')
-          .select('hike_day_id, dropped_off_at')
-          .eq('status', 'confirmed')
-          .in('hike_day_id', dayIds)
-        if (dropoffRows) {
-          const stats: Record<string, { total: number; complete: number }> = {}
-          for (const id of dayIds) stats[id] = { total: 0, complete: 0 }
-          for (const r of dropoffRows) {
-            stats[r.hike_day_id].total++
-            if (r.dropped_off_at) stats[r.hike_day_id].complete++
-          }
-          setDropoffStatsByDay(stats)
-        }
-      }
 
       setReady(true)
     }
@@ -185,7 +163,6 @@ export default function StaffDashboard() {
 
   const pendingDogs = clients.flatMap(c => c.dogs).filter(d => d.approval_status === 'pending').length
   const activeClients = clients.filter(c => c.status === 'active').length
-  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen px-4 py-10">
@@ -234,97 +211,14 @@ export default function StaffDashboard() {
           <Stat value={clients.length}         label="Total clients"       icon={<IconGroup    size={16} color={T.moss} />} onClick={() => router.push('/staff/clients')} />
         </div>
 
-        {/* ── Upcoming hikes ── */}
-        {upcomingHikes.length > 0 && (
-          <div className="mb-6">
-            <SectionHeader title="Upcoming hikes" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {upcomingHikes.map(hike => {
-                const isToday = hike.date === today
-                const dateLabel = isToday ? 'Today' : formatShort(hike.date)
-                const dogCount = hike.bookings.length
-                const s = isToday ? dropoffStatsByDay[hike.hikeDayId] : undefined
-                const hasBanner = isToday && !!s
-                const cardRadius = hasBanner ? '16px 16px 0 0' : 16
-                return (
-                  <div key={hike.date}>
-                    <button
-                      onClick={() => router.push(`/staff/hikes/${hike.date}`)}
-                      className="w-full text-left"
-                      style={{
-                        padding: 16,
-                        backgroundColor: '#fff',
-                        border: `1px solid ${T.cardBorder}`,
-                        borderBottom: hasBanner ? 'none' : `1px solid ${T.cardBorder}`,
-                        borderRadius: cardRadius,
-                        display: 'block',
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <span style={{ display: 'block', fontWeight: 700, color: T.brown, fontSize: 14, fontFamily: FONT }}>
-                            {dateLabel}
-                          </span>
-                          {hike.destination && (
-                            <span style={{ display: 'block', color: T.muted, fontSize: 13, marginTop: 2 }}>
-                              {hike.destination}
-                            </span>
-                          )}
-                          <span style={{ display: 'block', color: T.muted, fontSize: 13, marginTop: 2 }}>
-                            {dogCount} dog{dogCount !== 1 ? 's' : ''} confirmed
-                          </span>
-                        </div>
-                        <span style={{ color: T.orange, fontWeight: 600, fontSize: 13, flexShrink: 0 }}>View →</span>
-                      </div>
-                    </button>
-
-                    {isToday && (() => {
-                      if (!s) return null
-                      const bannerBase: React.CSSProperties = {
-                        width: '100%',
-                        border: `1px solid ${T.cardBorder}`,
-                        borderTop: 'none',
-                        borderRadius: '0 0 16px 16px',
-                        padding: '10px 16px',
-                        fontFamily: FONT,
-                        fontSize: 14,
-                        fontWeight: 700,
-                      }
-                      if (s.complete === s.total && s.total > 0) return (
-                        <div style={{ ...bannerBase, backgroundColor: T.completeBg }}
-                          className="flex items-center justify-center gap-2">
-                          <IconCheck size={15} color={T.moss} />
-                          <span style={{ color: T.forest }}>Hike complete</span>
-                        </div>
-                      )
-                      if (s.complete > 0) return (
-                        <button
-                          onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
-                          style={{ ...bannerBase, backgroundColor: '#2B5BA8', color: '#fff' }}
-                          className="flex items-center justify-center gap-2"
-                        >
-                          Hike in progress · {s.complete} of {s.total} dropped off
-                        </button>
-                      )
-                      return (
-                        <button
-                          onClick={() => router.push(`/staff/hikes/${hike.date}/run`)}
-                          style={{ ...bannerBase, backgroundColor: T.forest, color: '#fff' }}
-                          className="flex items-center justify-center gap-2"
-                        >
-                          Start hike
-                        </button>
-                      )
-                    })()}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {/* ── Quick actions ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 40 }}>
+          <ActionRow
+            title="Hikes"
+            subtitle="Upcoming schedule and past hike history"
+            icon={<IconMountain size={16} color={T.moss} />}
+            onClick={() => router.push('/staff/hikes')}
+          />
           <ActionRow
             title="New dog approvals"
             subtitle="Review, approve and assign zones"
@@ -372,15 +266,6 @@ export default function StaffDashboard() {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
-
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <div style={{ width: 3, height: 16, backgroundColor: T.forest, borderRadius: 2, flexShrink: 0 }} />
-      <h2 style={{ color: T.brown, fontWeight: 700, fontFamily: FONT, fontSize: 14 }}>{title}</h2>
-    </div>
-  )
-}
 
 function Stat({ value, label, icon, onClick }: { value: number; label: string; icon: React.ReactNode; onClick: () => void }) {
   return (

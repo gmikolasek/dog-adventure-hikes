@@ -189,7 +189,7 @@ export default function HikesPage() {
 
         {/* Title */}
         <h1 style={{ fontSize: 26, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 20px' }}>
-          Upcoming hikes
+          Hikes
         </h1>
 
         {hikes.length === 0 ? (
