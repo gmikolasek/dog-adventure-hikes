@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getClients, getWeeklyMetrics, type ClientRow, type WeeklyMetrics } from '@/lib/adminData'
-import { exportClientsToExcel } from '@/lib/excelExport'
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const T = {
@@ -112,8 +111,6 @@ export default function StaffDashboard() {
   const [staffName, setStaffName] = useState('')
   const [clients, setClients] = useState<ClientRow[]>([])
   const [metrics, setMetrics] = useState<WeeklyMetrics>({ hikesThisWeek: 0, revenueThisWeek: 0, bookingsCount: 0 })
-  const [exporting, setExporting] = useState(false)
-
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -142,15 +139,6 @@ export default function StaffDashboard() {
   async function signOut() {
     await supabase.auth.signOut()
     router.push('/')
-  }
-
-  async function handleExport() {
-    setExporting(true)
-    try {
-      await exportClientsToExcel(clients)
-    } finally {
-      setExporting(false)
-    }
   }
 
   if (!ready) {
@@ -244,20 +232,12 @@ export default function StaffDashboard() {
             icon={<IconAlert size={16} color={T.moss} />}
             onClick={() => router.push('/staff/exceptions')}
           />
-          {/* Export — separate button to carry disabled state */}
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: '14px 16px', textAlign: 'left', width: '100%', opacity: exporting ? 0.5 : 1, fontFamily: FONT }}
-            className="flex items-center gap-3"
-          >
-            <IconBubble><IconDownload size={16} color={T.moss} /></IconBubble>
-            <div className="flex-1 min-w-0">
-              <span style={{ display: 'block', fontWeight: 700, color: T.brown, fontSize: 14 }}>Export to Excel</span>
-              <span style={{ display: 'block', color: T.muted, fontSize: 13, marginTop: 2 }}>Download all client &amp; booking data</span>
-            </div>
-            <IconChevronRight size={16} color={exporting ? T.muted : T.moss} />
-          </button>
+          <ActionRow
+            title="Revenue & Export"
+            subtitle="Summaries by period and Excel export"
+            icon={<IconDownload size={16} color={T.moss} />}
+            onClick={() => router.push('/staff/revenue')}
+          />
         </div>
 
       </div>

@@ -351,7 +351,7 @@ All staff-facing pages below have been converted from default Tailwind to brand 
 | Staff hike detail (`/staff/hikes/[date]`) | ✅ Draggable cards, dog photos, notification placeholder |
 | Staff zones (`/staff/zones/[userId]`) | ✅ Back button → /staff/clients |
 | Staff hike run (`/staff/hikes/[date]/run`) | ✅ Draggable pickup + dropoff queues, per-dog WhatsApp buttons, "Hiking finished" broadcast |
-| Staff revenue (`/staff/revenue`) | ✅ Brand tokens applied |
+| Staff revenue (`/staff/revenue`) | ✅ Month/Quarter/YTD summary cards; period picker (month/quarter/year select); custom date range; two-tab Excel export (Transactions: Date/Client/Dog/Amount/Credit/PaymentType/Zone; Client Summary: month+quarter+YTD per client with TOTAL row) |
 | Staff exceptions (`/staff/exceptions`) | ✅ Real DB query + brand token polish |
 | Client dashboard (`/client/home`) | ✅ Brand tokens applied |
 | Client booking flow (`/client/book`) | ✅ Brand tokens applied |
