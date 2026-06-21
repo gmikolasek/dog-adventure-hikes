@@ -226,6 +226,8 @@ export default function ClientHome() {
   const primary = dogs[0] as Dog | undefined
   const firstName = profile?.name?.split(' ')[0] ?? ''
   const nextHike = upcoming[0] ?? null
+  const sameDateBookings = nextHike ? upcoming.filter(u => u.date === nextHike.date) : []
+  const nextHikeDogNames = sameDateBookings.map(u => u.dogName)
 
   return (
     <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen px-5 pb-12">
@@ -272,6 +274,14 @@ export default function ClientHome() {
               <p style={{ color: '#fff', fontWeight: 700, fontSize: 20, fontFamily: FONT, lineHeight: 1.2, marginBottom: 6 }}>
                 {nextHike.destination ?? 'Trail run'}
               </p>
+              {sameDateBookings.length > 1 && (
+                <div className="flex items-center gap-1.5 mb-1">
+                  <IconPaw size={13} color="rgba(255,255,255,0.85)" />
+                  <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontFamily: FONT }}>
+                    {nextHikeDogNames.join(' + ')}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-1.5 mb-1">
                 <IconCalendar size={13} color="rgba(255,255,255,0.85)" />
                 <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontFamily: FONT }}>
