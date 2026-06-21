@@ -115,6 +115,7 @@ export default function ClientHome() {
   const [zone, setZone] = useState<Zone | null>(null)
   const [upcoming, setUpcoming] = useState<BookingCard[]>([])
   const [past, setPast] = useState<BookingCard[]>([])
+  const [pastOpen, setPastOpen] = useState(false)
   const [dogPackCredits, setDogPackCredits] = useState<DogPackSummary[]>([])
 
   useEffect(() => {
@@ -428,29 +429,37 @@ export default function ClientHome() {
         {/* ── Past and cancelled section ── */}
         {past.length > 0 && (
           <div style={{ paddingBottom: 16 }}>
-            <SectionHeader title="Past and cancelled" />
-            <div className="space-y-2">
-              {past.map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => router.push(`/client/bookings/${u.id}`)}
-                  style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, width: '100%', textAlign: 'left', cursor: 'pointer' }}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm">
-                      {formatShort(u.date)}
-                    </p>
-                    <PastBadge status={u.status} />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <IconPaw size={13} color={T.muted} />
-                    <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
-                      {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <SectionHeader title={`Past and cancelled (${past.length})`} />
+            <button
+              onClick={() => setPastOpen(prev => !prev)}
+              style={{ width: '100%', backgroundColor: 'white', border: `1px solid ${T.cardBorder}`, color: T.brown, borderRadius: 12, padding: '12px 16px', fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', marginBottom: pastOpen ? 8 : 0 }}
+            >
+              {pastOpen ? '▲ Hide past hikes' : '▼ View past hikes'}
+            </button>
+            {pastOpen && (
+              <div className="space-y-2">
+                {past.map(u => (
+                  <button
+                    key={u.id}
+                    onClick={() => router.push(`/client/bookings/${u.id}`)}
+                    style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm">
+                        {formatShort(u.date)}
+                      </p>
+                      <PastBadge status={u.status} />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <IconPaw size={13} color={T.muted} />
+                      <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                        {u.dogName}{u.destination ? ` · ${u.destination}` : ''}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

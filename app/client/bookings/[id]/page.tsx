@@ -520,13 +520,10 @@ export default function BookingDetailPage() {
             className="flex-1 flex items-center justify-center px-4"
             onClick={e => e.stopPropagation()}
           >
-            <div
-              style={{
-                width: '100%', borderRadius: 16,
-                backgroundImage: `url(${getPhotoUrl(lightbox.storagePath)})`,
-                backgroundSize: 'cover', backgroundPosition: 'center',
-                height: '70vw', maxHeight: '65vh',
-              }}
+            <img
+              src={getPhotoUrl(lightbox.storagePath)}
+              alt={lightbox.caption ?? ''}
+              style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: 16, display: 'block' }}
             />
           </div>
 
@@ -574,16 +571,14 @@ function PhotoCard({ photo, onTap }: { photo: HikePhoto; onTap: () => void }) {
   return (
     <button
       onClick={onTap}
-      style={{ width: '100%', borderRadius: 16, overflow: 'hidden', display: 'block', border: 'none', padding: 0, cursor: 'pointer' }}
+      style={{ width: '100%', borderRadius: 16, overflow: 'hidden', display: 'block', border: 'none', padding: 0, cursor: 'pointer', backgroundColor: badgeBg }}
     >
-      <div
-        style={{
-          width: '100%', borderRadius: 16,
-          backgroundImage: `url(${getPhotoUrl(photo.storagePath)})`,
-          backgroundSize: 'cover', backgroundPosition: 'center',
-          backgroundColor: badgeBg, height: 200, position: 'relative',
-        }}
-      >
+      <div style={{ width: '100%', height: 200, borderRadius: 16, backgroundColor: badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+        <img
+          src={getPhotoUrl(photo.storagePath)}
+          alt={photo.caption ?? ''}
+          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
+        />
         {photo.caption && (
           <div
             style={{

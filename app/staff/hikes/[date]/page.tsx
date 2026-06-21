@@ -430,7 +430,9 @@ export default function HikeDetailPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {photos.map(p => (
                   <div key={p.id} style={{ position: 'relative' }}>
-                    <div style={{ width: '100%', borderRadius: 10, backgroundImage: `url(${getPhotoUrl(p.storagePath)})`, backgroundSize: 'cover', backgroundPosition: 'center', height: 120, backgroundColor: '#EEE9E0' }} />
+                    <div style={{ width: '100%', height: 120, borderRadius: 10, backgroundColor: '#EEE9E0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <img src={getPhotoUrl(p.storagePath)} alt={p.caption ?? ''} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+                    </div>
                     <button
                       onClick={() => setConfirmDeleteId(p.id)}
                       style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.5)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', fontSize: 12 }}
