@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import {
-  twoWeekDates, isoDate, todayIso, formatFull,
+  twoWeekDates, rollingTwoWeekDates, isoDate, todayIso, formatFull,
   DEFAULT_CAPACITY, type HikeDay, type HikeDayStatus,
 } from '@/lib/booking'
 
@@ -43,7 +43,7 @@ export default function StaffCalendar() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const dates = twoWeekDates()
+  const dates = rollingTwoWeekDates()
   const today = todayIso()
 
   useEffect(() => {

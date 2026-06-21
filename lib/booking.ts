@@ -66,6 +66,29 @@ export function twoWeekDates(): Date[] {
   })
 }
 
+// Returns a Monday-aligned grid of dates that always covers at least 14 days
+// from today forward. Starts at this week's Monday (so past days in the
+// current week still render, dimmed) and extends far enough to guarantee
+// 14 future-or-today days are included — which may produce 3 calendar rows
+// when today falls later in the week.
+export function rollingTwoWeekDates(): Date[] {
+  const start = mondayOf(new Date())
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const dates: Date[] = []
+  let i = 0
+  let futureCount = 0
+  while (futureCount < 14) {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    dates.push(d)
+    if (d >= today) futureCount++
+    i++
+  }
+  return dates
+}
+
 export function formatFull(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', {
