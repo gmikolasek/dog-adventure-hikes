@@ -80,6 +80,7 @@ export default function BookingDetailPage() {
   const [userId, setUserId] = useState('')
   const [booking, setBooking] = useState<BookingDetail | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [siblings, setSiblings] = useState<{ bookingId: string; dogId: string; dogName: string }[]>([])
 
   // Photos
   const [dogPhotos, setDogPhotos] = useState<HikePhoto[]>([])
@@ -155,6 +156,21 @@ export default function BookingDetailPage() {
       setBooking(detail)
       setEditPickup(detail.pickupMethod)
       setEditDropoff(detail.dropoffMethod)
+
+      // Sibling bookings — same hike day, same owner
+      const { data: siblingRows } = await supabase
+        .from('bookings')
+        .select('id, dog_id')
+        .eq('hike_day_id', bRow.hike_day_id)
+        .eq('owner_id', session.user.id)
+        .in('status', ['confirmed', 'cancelled', 'no_show'])
+      setSiblings(
+        (siblingRows ?? []).map(r => ({
+          bookingId: r.id,
+          dogId: r.dog_id,
+          dogName: dogNameById[r.dog_id] ?? 'Your dog',
+        }))
+      )
 
       // Load hike photos (RLS: only visible if this client had a confirmed booking on that day)
       const { data: photoRows } = await supabase
@@ -290,6 +306,30 @@ export default function BookingDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Dog switcher — only when multiple dogs booked same day */}
+        {siblings.length > 1 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            {siblings.map(s => {
+              const active = s.dogId === booking.dogId
+              return (
+                <button
+                  key={s.bookingId}
+                  onClick={() => { if (!active) router.replace(`/client/bookings/${s.bookingId}`) }}
+                  style={{
+                    borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                    fontFamily: FONT, cursor: active ? 'default' : 'pointer',
+                    backgroundColor: active ? forest : 'white',
+                    color: active ? 'white' : brown,
+                    border: active ? 'none' : `1px solid ${cardBorder}`,
+                  }}
+                >
+                  {s.dogName}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Booking details card */}
         <div style={{ backgroundColor: 'white', border: `1px solid ${cardBorder}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
