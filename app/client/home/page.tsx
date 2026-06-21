@@ -258,7 +258,7 @@ export default function ClientHome() {
           <div style={{ borderRadius: 16, overflow: 'hidden', minHeight: 200, position: 'relative', marginBottom: 20 }}>
             {/* Background */}
             {primary?.photo_url ? (
-              <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${primary.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center top' }} />
+              <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${primary.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
             ) : (
               <div style={{ position: 'absolute', inset: 0, backgroundColor: T.forest }} />
             )}

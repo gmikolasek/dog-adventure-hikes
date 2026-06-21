@@ -334,7 +334,7 @@ export default function ClientProfile() {
                       title="Change photo"
                     >
                       {displayed ? (
-                        <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundImage: `url(${displayed})`, backgroundSize: 'cover', backgroundPosition: 'center top', border: `2px solid ${T.forest}` }} />
+                        <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundImage: `url(${displayed})`, backgroundSize: 'cover', backgroundPosition: 'center', border: `2px solid ${T.forest}` }} />
                       ) : (
                         <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: T.badgeBg, border: `2px solid ${T.cardBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <IconPaw size={22} color={T.moss} />
