@@ -11,6 +11,7 @@ import { formatShort, todayIso } from '@/lib/booking'
 type Zone = { name: string; description: string | null }
 type BookingCard = {
   id: string
+  hikeDayId: string
   date: string
   destination: string | null
   dogName: string
@@ -116,6 +117,7 @@ export default function ClientHome() {
   const [upcoming, setUpcoming] = useState<BookingCard[]>([])
   const [past, setPast] = useState<BookingCard[]>([])
   const [pastOpen, setPastOpen] = useState(false)
+  const [photoIndicatorDays, setPhotoIndicatorDays] = useState<Set<string>>(new Set())
   const [dogPackCredits, setDogPackCredits] = useState<DogPackSummary[]>([])
 
   useEffect(() => {
@@ -165,6 +167,7 @@ export default function ClientHome() {
           if (!day) continue
           const card: BookingCard = {
             id: b.id,
+            hikeDayId: b.hike_day_id,
             date: day.date,
             destination: day.destination_override,
             dogName: dogNameById[b.dog_id] ?? 'Your dog',
@@ -182,6 +185,20 @@ export default function ClientHome() {
 
         upcomingList.sort((a, b) => a.date.localeCompare(b.date))
         pastList.sort((a, b) => b.date.localeCompare(a.date))
+
+        const pastDayIds = [...new Set(pastList.map(p => p.hikeDayId))]
+        const dayIdsWithPhotos = new Set<string>()
+        if (pastDayIds.length > 0) {
+          const { data: photoRows } = await supabase
+            .from('hike_photos')
+            .select('hike_day_id')
+            .in('hike_day_id', pastDayIds)
+          for (const row of photoRows ?? []) {
+            dayIdsWithPhotos.add(row.hike_day_id)
+          }
+        }
+        setPhotoIndicatorDays(dayIdsWithPhotos)
+
         setUpcoming(upcomingList)
         setPast(pastList)
       }
@@ -455,9 +472,20 @@ export default function ClientHome() {
                     style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 16, width: '100%', textAlign: 'left', cursor: 'pointer' }}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm">
-                        {formatShort(u.date)}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p style={{ color: T.muted, fontFamily: FONT }} className="text-sm">
+                          {formatShort(u.date)}
+                        </p>
+                        {photoIndicatorDays.has(u.hikeDayId) && (
+                          <span style={{ backgroundColor: T.badgeBg, color: T.moss, borderRadius: 20, padding: '3px 10px', fontSize: 12, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={T.moss} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                              <circle cx="12" cy="13" r="4"/>
+                            </svg>
+                            Photos
+                          </span>
+                        )}
+                      </div>
                       <PastBadge status={u.status} />
                     </div>
                     <div className="flex items-center gap-1">
