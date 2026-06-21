@@ -368,7 +368,7 @@ export default function RunPage() {
     setSavingDropoffOrder(false)
   }
 
-  async function sendNotif(bookingId: string, key: string, phone: string, message: string) {
+  async function sendNotif(bookingId: string, key: string, phone: string, message: string, phase: 'pickup' | 'dropoff') {
     setNotifBusy(prev => ({ ...prev, [bookingId]: key }))
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -383,7 +383,8 @@ export default function RunPage() {
         })
       }
     } catch { /* mark sent regardless */ }
-    setSentNotifs(prev => ({ ...prev, [bookingId]: [...(prev[bookingId] ?? []), key] }))
+    const scopedKey = `${bookingId}:${phase}`
+    setSentNotifs(prev => ({ ...prev, [scopedKey]: [...(prev[scopedKey] ?? []), key] }))
     setNotifBusy(prev => ({ ...prev, [bookingId]: null }))
   }
 
@@ -793,9 +794,9 @@ export default function RunPage() {
                               </div>
                               <NotifRow
                                 booking={b}
-                                sentKeys={sentNotifs[b.id] ?? []}
+                                sentKeys={sentNotifs[`${b.id}:pickup`] ?? []}
                                 busyKey={notifBusy[b.id] ?? null}
-                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'pickup')}
                                 dark
                               />
                               <button
@@ -843,9 +844,9 @@ export default function RunPage() {
                               </div>
                               <NotifRow
                                 booking={b}
-                                sentKeys={sentNotifs[b.id] ?? []}
+                                sentKeys={sentNotifs[`${b.id}:pickup`] ?? []}
                                 busyKey={notifBusy[b.id] ?? null}
-                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'pickup')}
                                 dark={false}
                               />
                             </div>
@@ -1069,9 +1070,9 @@ export default function RunPage() {
 
                                 <NotifRow
                                   booking={b}
-                                  sentKeys={sentNotifs[b.id] ?? []}
+                                  sentKeys={sentNotifs[`${b.id}:dropoff`] ?? []}
                                   busyKey={notifBusy[b.id] ?? null}
-                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'dropoff')}
                                   dark
                                 />
 
@@ -1164,9 +1165,9 @@ export default function RunPage() {
                                 </div>
                                 <NotifRow
                                   booking={b}
-                                  sentKeys={sentNotifs[b.id] ?? []}
+                                  sentKeys={sentNotifs[`${b.id}:dropoff`] ?? []}
                                   busyKey={notifBusy[b.id] ?? null}
-                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg)}
+                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'dropoff')}
                                   dark={false}
                                 />
                               </div>
