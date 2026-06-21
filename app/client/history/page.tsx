@@ -137,6 +137,9 @@ export default function HistoryPage() {
   const [completed, setCompleted] = useState<CompletedHike[]>([])
   const [packs, setPacks] = useState<TrailPackDisplay[]>([])
   const [cancelled, setCancelled] = useState<CancelledBooking[]>([])
+  const [showAllCompleted, setShowAllCompleted] = useState(false)
+  const [showAllPacks, setShowAllPacks] = useState(false)
+  const [showAllCancelled, setShowAllCancelled] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -159,7 +162,6 @@ export default function HistoryPage() {
         .order('created_at', { ascending: true })
 
       const bookings = (bRows ?? []) as BookingRow[]
-      console.log('[history] today (UTC):', today, '| bookings fetched:', bookings.length, bookings.map(b => ({ id: b.id.slice(0, 8), status: b.status, hike_day_id: b.hike_day_id.slice(0, 8), dropped_off_at: b.dropped_off_at })))
 
       let dayById: Record<string, { date: string; destination_override: string | null }> = {}
       if (bookings.length) {
@@ -168,7 +170,6 @@ export default function HistoryPage() {
           .from('hike_days')
           .select('id, date, destination_override')
           .in('id', dayIds)
-        console.log('[history] hike_days fetched:', (dayRows ?? []).length, (dayRows ?? []).map(d => ({ id: d.id.slice(0, 8), date: d.date })))
         for (const d of dayRows ?? []) dayById[d.id] = d
       }
 
@@ -261,7 +262,6 @@ export default function HistoryPage() {
         // dropped_off_at is set (dog was returned today — same-day hikes pass
         // the date < today check only starting tomorrow UTC).
         if (b.status === 'confirmed' && (b.dropped_off_at || day.date < today)) {
-          console.log('[history] completed hit:', { date: day.date, today, dropped_off_at: b.dropped_off_at })
           completedList.push({
             bookingId: b.id,
             date: day.date,
@@ -330,7 +330,7 @@ export default function HistoryPage() {
             </div>
           ) : (
             <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, overflow: 'hidden' }}>
-              {completed.map((h, i) => (
+              {(showAllCompleted ? completed : completed.slice(0, 5)).map((h, i) => (
                 <div
                   key={h.bookingId}
                   style={i > 0 ? { borderTop: `1px solid ${T.cardBorder}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } : { padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
@@ -351,6 +351,14 @@ export default function HistoryPage() {
                   </div>
                 </div>
               ))}
+              {completed.length > 5 && (
+                <button
+                  onClick={() => setShowAllCompleted(prev => !prev)}
+                  style={{ width: '100%', background: 'none', border: 'none', borderTop: `1px solid ${T.cardBorder}`, padding: '12px 16px', textAlign: 'center', color: T.forest, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: FONT, display: 'block' }}
+                >
+                  {showAllCompleted ? '▲ Show less' : `▼ Show ${completed.length - 5} more`}
+                </button>
+              )}
             </div>
           )}
         </section>
@@ -362,35 +370,47 @@ export default function HistoryPage() {
             <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
               <p style={{ color: T.muted, fontSize: 14, fontFamily: FONT }}>No Trail Pack purchases yet.</p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {packs.map(pack => (
-                <div
-                  key={pack.id}
-                  style={{ backgroundColor: T.warmSand, border: `1px solid ${T.sand}`, borderRadius: 16, padding: 16 }}
-                >
-                  <div className="flex items-center gap-3 mb-1">
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <IconTag size={16} color={T.orange} />
+          ) : (() => {
+            const packsNewestFirst = [...packs].reverse()
+            const visiblePacks = showAllPacks ? packsNewestFirst : packsNewestFirst.slice(0, 1)
+            return (
+              <div className="space-y-3">
+                {visiblePacks.map(pack => (
+                  <div
+                    key={pack.id}
+                    style={{ backgroundColor: T.warmSand, border: `1px solid ${T.sand}`, borderRadius: 16, padding: 16 }}
+                  >
+                    <div className="flex items-center gap-3 mb-1">
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FEF3E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <IconTag size={16} color={T.orange} />
+                      </div>
+                      <div>
+                        <p style={{ color: T.brown, fontWeight: 700, fontSize: 16, fontFamily: FONT, lineHeight: 1.2 }}>
+                          Trail Pack{pack.dogName ? ` · ${pack.dogName}` : ' · 4 hikes'}
+                        </p>
+                        <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
+                          Purchased {formatShort(pack.purchaseDate.slice(0, 10))}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p style={{ color: T.brown, fontWeight: 700, fontSize: 16, fontFamily: FONT, lineHeight: 1.2 }}>
-                        Trail Pack{pack.dogName ? ` · ${pack.dogName}` : ' · 4 hikes'}
-                      </p>
-                      <p style={{ color: T.muted, fontSize: 13, fontFamily: FONT }}>
-                        Purchased {formatShort(pack.purchaseDate.slice(0, 10))}
-                      </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                      {pack.slots.map((slot, i) => (
+                        <SlotRow key={i} index={i + 1} slot={slot} />
+                      ))}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                    {pack.slots.map((slot, i) => (
-                      <SlotRow key={i} index={i + 1} slot={slot} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+                {packsNewestFirst.length > 1 && (
+                  <button
+                    onClick={() => setShowAllPacks(prev => !prev)}
+                    style={{ backgroundColor: 'white', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: '12px', width: '100%', textAlign: 'center', color: T.forest, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: FONT, marginTop: 8 }}
+                  >
+                    {showAllPacks ? '▲ Show less' : `▼ Show ${packsNewestFirst.length - 1} more Trail Pack${packsNewestFirst.length - 1 > 1 ? 's' : ''}`}
+                  </button>
+                )}
+              </div>
+            )
+          })()}
         </section>
 
         {/* ── Cancelled bookings ── */}
@@ -402,7 +422,7 @@ export default function HistoryPage() {
             </div>
           ) : (
             <div style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 16, overflow: 'hidden' }}>
-              {cancelled.map((c, i) => (
+              {(showAllCancelled ? cancelled : cancelled.slice(0, 5)).map((c, i) => (
                 <div
                   key={c.bookingId}
                   style={i > 0 ? { borderTop: `1px solid ${T.cardBorder}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } : { padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
@@ -423,6 +443,14 @@ export default function HistoryPage() {
                   </span>
                 </div>
               ))}
+              {cancelled.length > 5 && (
+                <button
+                  onClick={() => setShowAllCancelled(prev => !prev)}
+                  style={{ width: '100%', background: 'none', border: 'none', borderTop: `1px solid ${T.cardBorder}`, padding: '12px 16px', textAlign: 'center', color: T.forest, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: FONT, display: 'block' }}
+                >
+                  {showAllCancelled ? '▲ Show less' : `▼ Show ${cancelled.length - 5} more`}
+                </button>
+              )}
             </div>
           )}
         </section>
