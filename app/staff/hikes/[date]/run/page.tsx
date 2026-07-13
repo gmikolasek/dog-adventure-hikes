@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
@@ -69,6 +69,7 @@ function MountainIcon() {
 type RunBooking = {
   id: string
   dogId: string
+  ownerId: string
   dogName: string
   dogPhotoUrl: string | null
   ownerName: string | null
@@ -111,6 +112,35 @@ function sortByDropoffOrder(a: RunBooking, b: RunBooking): number {
   return aOrd - bOrd
 }
 
+type OwnerGroup = {
+  ownerId: string
+  ownerName: string | null
+  ownerAddress: string | null
+  ownerPhone: string | null
+  zoneName: string | null
+  bookings: RunBooking[]
+}
+
+function groupByOwner(list: RunBooking[]): OwnerGroup[] {
+  const map = new Map<string, OwnerGroup>()
+  const order: string[] = []
+  for (const b of list) {
+    if (!map.has(b.ownerId)) {
+      map.set(b.ownerId, {
+        ownerId: b.ownerId,
+        ownerName: b.ownerName,
+        ownerAddress: b.ownerAddress,
+        ownerPhone: b.ownerPhone,
+        zoneName: b.zoneName,
+        bookings: [],
+      })
+      order.push(b.ownerId)
+    }
+    map.get(b.ownerId)!.bookings.push(b)
+  }
+  return order.map(id => map.get(id)!)
+}
+
 function deriveMode(bookings: RunBooking[]): RunMode {
   if (bookings.length === 0) return 'pickup'
   const active = bookings.filter(b => b.status !== 'no_show')
@@ -146,7 +176,6 @@ export default function RunPage() {
 
   const [dropoffPhoto, setDropoffPhoto] = useState<Record<string, File>>({})
   const [dropoffNote, setDropoffNote] = useState<Record<string, string>>({})
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [showAddDog, setShowAddDog] = useState(false)
   const [addDogQuery, setAddDogQuery] = useState('')
@@ -217,6 +246,7 @@ export default function RunPage() {
       return {
         id: b.id,
         dogId: b.dog_id,
+        ownerId: b.owner_id,
         dogName: dogById[b.dog_id]?.name ?? 'Unknown',
         dogPhotoUrl: dogById[b.dog_id]?.photoUrl ?? null,
         ownerName: owner?.name ?? null,
@@ -339,14 +369,22 @@ export default function RunPage() {
     if (!result.destination || result.destination.index === result.source.index) return
     const pending = bookings.filter(b => !b.pickedUpAt && b.status !== 'no_show')
     const nonPending = bookings.filter(b => b.pickedUpAt || b.status === 'no_show')
-    const items = Array.from(pending)
-    const [moved] = items.splice(result.source.index, 1)
-    items.splice(result.destination.index, 0, moved)
-    setBookings([...items, ...nonPending])
+    const groups = groupByOwner(pending)
+    const [moved] = groups.splice(result.source.index, 1)
+    groups.splice(result.destination.index, 0, moved)
+    const reordered: RunBooking[] = []
+    const updates: { id: string; order: number }[] = []
+    let idx = 0
+    for (const g of groups) {
+      for (const b of g.bookings) {
+        reordered.push({ ...b, pickupOrder: idx })
+        updates.push({ id: b.id, order: idx })
+        idx++
+      }
+    }
+    setBookings([...reordered, ...nonPending])
     setSavingOrder(true)
-    await Promise.all(
-      items.map((b, i) => supabase.from('bookings').update({ pickup_order: i }).eq('id', b.id))
-    )
+    await Promise.all(updates.map(u => supabase.from('bookings').update({ pickup_order: u.order }).eq('id', u.id)))
     setSavingOrder(false)
   }
 
@@ -356,15 +394,22 @@ export default function RunPage() {
       .filter(b => b.status !== 'no_show' && !!b.pickedUpAt && !b.droppedOffAt)
       .sort(sortByDropoffOrder)
     const rest = bookings.filter(b => !pending.find(p => p.id === b.id))
-    const items = Array.from(pending)
-    const [moved] = items.splice(result.source.index, 1)
-    items.splice(result.destination.index, 0, moved)
-    const reordered = items.map((b, i) => ({ ...b, dropoffOrder: i }))
+    const groups = groupByOwner(pending)
+    const [moved] = groups.splice(result.source.index, 1)
+    groups.splice(result.destination.index, 0, moved)
+    const reordered: RunBooking[] = []
+    const updates: { id: string; order: number }[] = []
+    let idx = 0
+    for (const g of groups) {
+      for (const b of g.bookings) {
+        reordered.push({ ...b, dropoffOrder: idx })
+        updates.push({ id: b.id, order: idx })
+        idx++
+      }
+    }
     setBookings([...reordered, ...rest])
     setSavingDropoffOrder(true)
-    await Promise.all(
-      reordered.map((b, i) => supabase.from('bookings').update({ dropoff_order: i }).eq('id', b.id))
-    )
+    await Promise.all(updates.map(u => supabase.from('bookings').update({ dropoff_order: u.order }).eq('id', u.id)))
     setSavingDropoffOrder(false)
   }
 
@@ -485,6 +530,7 @@ export default function RunPage() {
     const newEntry: RunBooking = {
       id: (newBooking as { id: string }).id,
       dogId: addDogSelected.dogId,
+      ownerId: addDogSelected.ownerId,
       dogName: addDogSelected.dogName,
       dogPhotoUrl: addDogSelected.dogPhotoUrl,
       ownerName: ownerRow?.name ?? addDogSelected.ownerName,
@@ -535,8 +581,12 @@ export default function RunPage() {
   const modeLabel = mode === 'pickup' ? 'Pickup' : mode === 'hike' ? 'Hiking' : 'Drop-off'
   const headerTitle = mode === 'pickup' ? 'Pickup' : mode === 'hike' ? 'On the hike' : 'Drop-off'
 
-  // Suppress unused variable warning
+  // Suppress unused variable warnings
   void nextPickup
+  void nextDropoff
+
+  const pendingGroups = groupByOwner(pendingDogs)
+  const dropoffGroups = groupByOwner(dropoffPending)
 
   return (
     <main style={{ minHeight: '100svh', backgroundColor: '#F5F0E8', fontFamily: FONT, display: 'flex', flexDirection: 'column' }}>
@@ -745,8 +795,8 @@ export default function RunPage() {
             <Droppable droppableId="pickup-queue">
               {(provided) => (
                 <div ref={provided.innerRef} {...provided.droppableProps}>
-                  {pendingDogs.map((b, i) => (
-                    <Draggable key={b.id} draggableId={b.id} index={i}>
+                  {pendingGroups.map((group, groupIdx) => (
+                    <Draggable key={`owner-${group.ownerId}`} draggableId={`owner-${group.ownerId}`} index={groupIdx}>
                       {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
@@ -757,8 +807,8 @@ export default function RunPage() {
                             boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.15)' : 'none',
                           }}
                         >
-                          {i === 0 ? (
-                            /* Hero card */
+                          {groupIdx === 0 ? (
+                            /* Hero group */
                             <div style={{ backgroundColor: '#26452B', borderRadius: 16, padding: 16 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                                 <p style={{ fontSize: 11, fontWeight: 700, color: '#E6C89A', letterSpacing: '0.1em', fontFamily: FONT, margin: 0, textTransform: 'uppercase' }}>
@@ -768,87 +818,145 @@ export default function RunPage() {
                                   <DragHandleIcon color="rgba(255,255,255,0.4)" />
                                 </div>
                               </div>
-                              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
-                                {b.dogPhotoUrl ? (
-                                  <img src={b.dogPhotoUrl} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
-                                ) : (
-                                  <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <PawLight size={28} />
-                                  </div>
-                                )}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
-                                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerName}</p>
-                                  {b.ownerAddress && (
-                                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 4px' }}>{b.ownerAddress}</p>
-                                  )}
-                                  {b.zoneName && (
-                                    <p style={{ fontSize: 12, color: '#E6C89A', fontFamily: FONT, margin: '0 0 6px' }}>{b.zoneName}</p>
-                                  )}
-                                  {b.pickupMethod && (
-                                    <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
-                                      {b.pickupMethod}
-                                    </span>
-                                  )}
+                              {group.bookings.length > 1 && (
+                                <div style={{ marginBottom: 14 }}>
+                                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{group.ownerName}</p>
+                                  {group.ownerAddress && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', fontFamily: FONT, margin: '0 0 2px' }}>{group.ownerAddress}</p>}
+                                  {group.zoneName && <p style={{ fontSize: 12, color: '#E6C89A', fontFamily: FONT, margin: 0 }}>{group.zoneName}</p>}
                                 </div>
-                              </div>
-                              <NotifRow
-                                booking={b}
-                                sentKeys={sentNotifs[`${b.id}:pickup`] ?? []}
-                                busyKey={notifBusy[b.id] ?? null}
-                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'pickup')}
-                                dark
-                              />
-                              <button
-                                onClick={() => confirmPickup(b.id)}
-                                disabled={busy === b.id}
-                                style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', marginTop: 12, marginBottom: 8, opacity: busy === b.id ? 0.5 : 1 }}
-                              >
-                                {busy === b.id ? 'Saving…' : 'Confirm pickup ✓'}
-                              </button>
-                              <button
-                                onClick={() => setConfirmNoShow(b.id)}
-                                style={{ width: '100%', backgroundColor: 'transparent', border: 'none', color: '#FBE9E3', fontSize: 14, fontFamily: FONT, cursor: 'pointer', padding: '8px', textAlign: 'center' }}
-                              >
-                                Mark no-show
-                              </button>
-                            </div>
-                          ) : (
-                            /* Regular card */
-                            <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                {b.dogPhotoUrl ? (
-                                  <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
-                                ) : (
-                                  <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <PawDark size={22} />
+                              )}
+                              {group.bookings.map((b, dogIdx) => (
+                                <div key={b.id} style={dogIdx > 0 ? { borderTop: '1px solid rgba(255,255,255,0.15)', marginTop: 16, paddingTop: 16 } : {}}>
+                                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+                                    {b.dogPhotoUrl ? (
+                                      <img src={b.dogPhotoUrl} alt="" style={{ width: group.bookings.length > 1 ? 52 : 64, height: group.bookings.length > 1 ? 52 : 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
+                                    ) : (
+                                      <div style={{ width: group.bookings.length > 1 ? 52 : 64, height: group.bookings.length > 1 ? 52 : 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <PawLight size={group.bookings.length > 1 ? 22 : 28} />
+                                      </div>
+                                    )}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <p style={{ fontSize: group.bookings.length > 1 ? 17 : 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                      {group.bookings.length === 1 && (
+                                        <>
+                                          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerName}</p>
+                                          {b.ownerAddress && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 4px' }}>{b.ownerAddress}</p>}
+                                          {b.zoneName && <p style={{ fontSize: 12, color: '#E6C89A', fontFamily: FONT, margin: '0 0 6px' }}>{b.zoneName}</p>}
+                                        </>
+                                      )}
+                                      {b.pickupMethod && (
+                                        <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                          {b.pickupMethod}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
-                                  <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: '0 0 4px' }}>
-                                    {b.ownerName}{b.zoneName ? ` · ${b.zoneName}` : ''}
-                                  </p>
-                                  {b.pickupMethod && (
-                                    <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
-                                      {b.pickupMethod}
-                                    </span>
+                                  <NotifRow
+                                    booking={b}
+                                    sentKeys={sentNotifs[`${b.id}:pickup`] ?? []}
+                                    busyKey={notifBusy[b.id] ?? null}
+                                    onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'pickup')}
+                                    dark
+                                  />
+                                  <button
+                                    onClick={() => confirmPickup(b.id)}
+                                    disabled={busy === b.id}
+                                    style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '13px', fontSize: 15, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', marginTop: 10, marginBottom: 6, opacity: busy === b.id ? 0.5 : 1 }}
+                                  >
+                                    {busy === b.id ? 'Saving…' : group.bookings.length > 1 ? `Confirm ${b.dogName} ✓` : 'Confirm pickup ✓'}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmNoShow(b.id)}
+                                    style={{ width: '100%', backgroundColor: 'transparent', border: 'none', color: '#FBE9E3', fontSize: 13, fontFamily: FONT, cursor: 'pointer', padding: '4px', textAlign: 'center' }}
+                                  >
+                                    {group.bookings.length > 1 ? `Mark ${b.dogName} no-show` : 'Mark no-show'}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : group.bookings.length === 1 ? (() => {
+                            const b = group.bookings[0]
+                            return (
+                              /* Regular single-dog card */
+                              <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                  {b.dogPhotoUrl ? (
+                                    <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
+                                  ) : (
+                                    <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <PawDark size={22} />
+                                    </div>
                                   )}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                    <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: '0 0 4px' }}>
+                                      {b.ownerName}{b.zoneName ? ` · ${b.zoneName}` : ''}
+                                    </p>
+                                    {b.pickupMethod && (
+                                      <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                        {b.pickupMethod}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div
+                                    {...(provided.dragHandleProps ?? {})}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, flexShrink: 0, cursor: 'grab' }}
+                                  >
+                                    <DragHandleIcon />
+                                  </div>
+                                </div>
+                                <NotifRow
+                                  booking={b}
+                                  sentKeys={sentNotifs[`${b.id}:pickup`] ?? []}
+                                  busyKey={notifBusy[b.id] ?? null}
+                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'pickup')}
+                                  dark={false}
+                                />
+                              </div>
+                            )
+                          })() : (
+                            /* Regular multi-dog group */
+                            <div style={{ borderRadius: 16, overflow: 'hidden', borderTop: '1px solid #C8DEC4', borderRight: '1px solid #C8DEC4', borderBottom: '1px solid #C8DEC4', borderLeft: '3px solid #4D6B46' }}>
+                              <div style={{ backgroundColor: '#E8F0E5', padding: '10px 14px 10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <p style={{ fontSize: 13, fontWeight: 700, color: '#26452B', fontFamily: FONT, margin: 0 }}>{group.ownerName}</p>
+                                  {group.ownerAddress && <p style={{ fontSize: 12, color: '#4D6B46', fontFamily: FONT, margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.ownerAddress}</p>}
                                 </div>
                                 <div
                                   {...(provided.dragHandleProps ?? {})}
-                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, flexShrink: 0, cursor: 'grab' }}
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, flexShrink: 0, cursor: 'grab' }}
                                 >
                                   <DragHandleIcon />
                                 </div>
                               </div>
-                              <NotifRow
-                                booking={b}
-                                sentKeys={sentNotifs[`${b.id}:pickup`] ?? []}
-                                busyKey={notifBusy[b.id] ?? null}
-                                onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'pickup')}
-                                dark={false}
-                              />
+                              {group.bookings.map((b) => (
+                                <div key={b.id} style={{ backgroundColor: 'white', borderTop: '1px solid #E8E2D9', padding: 14 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    {b.dogPhotoUrl ? (
+                                      <img src={b.dogPhotoUrl} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
+                                    ) : (
+                                      <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <PawDark size={20} />
+                                      </div>
+                                    )}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <p style={{ fontSize: 15, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                      {b.pickupMethod && (
+                                        <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                          {b.pickupMethod}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <NotifRow
+                                    booking={b}
+                                    sentKeys={sentNotifs[`${b.id}:pickup`] ?? []}
+                                    busyKey={notifBusy[b.id] ?? null}
+                                    onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'pickup')}
+                                    dark={false}
+                                  />
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -1020,8 +1128,8 @@ export default function RunPage() {
               <Droppable droppableId="dropoff-queue">
                 {(provided) => (
                   <div ref={provided.innerRef} {...provided.droppableProps}>
-                    {dropoffPending.map((b, i) => (
-                      <Draggable key={b.id} draggableId={b.id} index={i}>
+                    {dropoffGroups.map((group, groupIdx) => (
+                      <Draggable key={`owner-${group.ownerId}`} draggableId={`owner-${group.ownerId}`} index={groupIdx}>
                         {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
@@ -1032,8 +1140,8 @@ export default function RunPage() {
                               boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.15)' : 'none',
                             }}
                           >
-                            {i === 0 ? (
-                              /* Hero card */
+                            {groupIdx === 0 ? (
+                              /* Hero group */
                               <div style={{ backgroundColor: '#26452B', borderRadius: 16, padding: 16 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                                   <p style={{ fontSize: 11, fontWeight: 700, color: '#E6C89A', letterSpacing: '0.1em', fontFamily: FONT, margin: 0, textTransform: 'uppercase' }}>
@@ -1043,133 +1151,192 @@ export default function RunPage() {
                                     <DragHandleIcon color="rgba(255,255,255,0.4)" />
                                   </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
-                                  {b.dogPhotoUrl ? (
-                                    <img src={b.dogPhotoUrl} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
-                                  ) : (
-                                    <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                      <PawLight size={28} />
-                                    </div>
-                                  )}
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <p style={{ fontSize: 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
-                                    <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerName}</p>
-                                    {b.ownerPhone && (
-                                      <p style={{ fontSize: 13, color: '#E6C89A', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerPhone}</p>
-                                    )}
-                                    {b.ownerAddress && (
-                                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 6px' }}>{b.ownerAddress}</p>
-                                    )}
-                                    {b.dropoffMethod && (
-                                      <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
-                                        {b.dropoffMethod}
-                                      </span>
-                                    )}
+                                {group.bookings.length > 1 && (
+                                  <div style={{ marginBottom: 14 }}>
+                                    <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{group.ownerName}</p>
+                                    {group.ownerPhone && <p style={{ fontSize: 13, color: '#E6C89A', fontFamily: FONT, margin: '0 0 2px' }}>{group.ownerPhone}</p>}
+                                    {group.ownerAddress && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', fontFamily: FONT, margin: 0 }}>{group.ownerAddress}</p>}
                                   </div>
-                                </div>
-
-                                <NotifRow
-                                  booking={b}
-                                  sentKeys={sentNotifs[`${b.id}:dropoff`] ?? []}
-                                  busyKey={notifBusy[b.id] ?? null}
-                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'dropoff')}
-                                  dark
-                                />
-
-                                {/* Optional photo */}
-                                <div style={{ marginTop: 12, marginBottom: 12 }}>
-                                  <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    style={{ display: 'none' }}
-                                    onChange={e => {
-                                      const file = e.target.files?.[0]
-                                      if (file) setDropoffPhoto(prev => ({ ...prev, [b.id]: file }))
-                                      e.target.value = ''
-                                    }}
-                                  />
-                                  {dropoffPhoto[b.id] ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 12px' }}>
-                                      <span style={{ fontSize: 13, color: 'white', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>
-                                        📷 {dropoffPhoto[b.id].name}
-                                      </span>
-                                      <button
-                                        onClick={() => setDropoffPhoto(prev => { const n = { ...prev }; delete n[b.id]; return n })}
-                                        style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer' }}
-                                      >
-                                        Remove
-                                      </button>
+                                )}
+                                {group.bookings.map((b, dogIdx) => (
+                                  <div key={b.id} style={dogIdx > 0 ? { borderTop: '1px solid rgba(255,255,255,0.15)', marginTop: 16, paddingTop: 16 } : {}}>
+                                    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+                                      {b.dogPhotoUrl ? (
+                                        <img src={b.dogPhotoUrl} alt="" style={{ width: group.bookings.length > 1 ? 52 : 64, height: group.bookings.length > 1 ? 52 : 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid white', flexShrink: 0 }} />
+                                      ) : (
+                                        <div style={{ width: group.bookings.length > 1 ? 52 : 64, height: group.bookings.length > 1 ? 52 : 64, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                          <PawLight size={group.bookings.length > 1 ? 22 : 28} />
+                                        </div>
+                                      )}
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <p style={{ fontSize: group.bookings.length > 1 ? 17 : 20, fontWeight: 700, color: 'white', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                        {group.bookings.length === 1 && (
+                                          <>
+                                            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerName}</p>
+                                            {b.ownerPhone && <p style={{ fontSize: 13, color: '#E6C89A', fontFamily: FONT, margin: '0 0 2px' }}>{b.ownerPhone}</p>}
+                                            {b.ownerAddress && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, margin: '0 0 6px' }}>{b.ownerAddress}</p>}
+                                          </>
+                                        )}
+                                        {b.dropoffMethod && (
+                                          <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                            {b.dropoffMethod}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => fileInputRef.current?.click()}
-                                      style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'transparent', fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, cursor: 'pointer' }}
-                                    >
-                                      📷 Add photo (optional)
-                                    </button>
-                                  )}
-                                </div>
-
-                                {/* Optional note */}
-                                <textarea
-                                  maxLength={200}
-                                  placeholder="Note for owner (optional)"
-                                  value={dropoffNote[b.id] ?? ''}
-                                  onChange={e => setDropoffNote(prev => ({ ...prev, [b.id]: e.target.value }))}
-                                  rows={2}
-                                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.08)', fontSize: 13, color: 'white', WebkitTextFillColor: 'white', fontFamily: FONT, resize: 'none', outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
-                                />
-
-                                <button
-                                  onClick={() => confirmDropoff(b.id)}
-                                  disabled={busy === b.id}
-                                  style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '14px', fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy === b.id ? 0.5 : 1 }}
-                                >
-                                  {busy === b.id ? 'Saving…' : 'Confirm drop-off ✓'}
-                                </button>
-                              </div>
-                            ) : (
-                              /* Regular card */
-                              <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                  {b.dogPhotoUrl ? (
-                                    <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
-                                  ) : (
-                                    <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                      <PawDark size={22} />
+                                    <NotifRow
+                                      booking={b}
+                                      sentKeys={sentNotifs[`${b.id}:dropoff`] ?? []}
+                                      busyKey={notifBusy[b.id] ?? null}
+                                      onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'dropoff')}
+                                      dark
+                                    />
+                                    <div style={{ marginTop: 10, marginBottom: 10 }}>
+                                      <input
+                                        id={`dropoff-photo-${b.id}`}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        style={{ display: 'none' }}
+                                        onChange={e => {
+                                          const file = e.target.files?.[0]
+                                          if (file) setDropoffPhoto(prev => ({ ...prev, [b.id]: file }))
+                                          e.target.value = ''
+                                        }}
+                                      />
+                                      {dropoffPhoto[b.id] ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 12px' }}>
+                                          <span style={{ fontSize: 13, color: 'white', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>
+                                            📷 {dropoffPhoto[b.id].name}
+                                          </span>
+                                          <button
+                                            onClick={() => setDropoffPhoto(prev => { const n = { ...prev }; delete n[b.id]; return n })}
+                                            style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: FONT, background: 'none', border: 'none', cursor: 'pointer' }}
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <label
+                                          htmlFor={`dropoff-photo-${b.id}`}
+                                          style={{ display: 'block', width: '100%', padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'transparent', fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, cursor: 'pointer', textAlign: 'center', boxSizing: 'border-box' }}
+                                        >
+                                          📷 Add photo (optional)
+                                        </label>
+                                      )}
                                     </div>
-                                  )}
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
-                                    <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>
-                                      {b.ownerName}{b.ownerAddress ? ` · ${b.ownerAddress}` : ''}
-                                    </p>
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                                    <textarea
+                                      maxLength={200}
+                                      placeholder="Note for owner (optional)"
+                                      value={dropoffNote[b.id] ?? ''}
+                                      onChange={e => setDropoffNote(prev => ({ ...prev, [b.id]: e.target.value }))}
+                                      rows={2}
+                                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.08)', fontSize: 13, color: 'white', WebkitTextFillColor: 'white', fontFamily: FONT, resize: 'none', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+                                    />
                                     <button
                                       onClick={() => confirmDropoff(b.id)}
-                                      disabled={!!busy}
-                                      style={{ backgroundColor: '#E8F0E5', color: '#26452B', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
+                                      disabled={busy === b.id}
+                                      style={{ width: '100%', backgroundColor: '#E08A3E', color: 'white', borderRadius: 12, padding: '13px', fontSize: 15, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy === b.id ? 0.5 : 1 }}
                                     >
-                                      {busy === b.id ? '…' : 'Drop-off'}
+                                      {busy === b.id ? 'Saving…' : group.bookings.length > 1 ? `Confirm ${b.dogName} ✓` : 'Confirm drop-off ✓'}
                                     </button>
-                                    <div
-                                      {...(provided.dragHandleProps ?? {})}
-                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, cursor: 'grab' }}
-                                    >
-                                      <DragHandleIcon />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : group.bookings.length === 1 ? (() => {
+                              const b = group.bookings[0]
+                              return (
+                                /* Regular single-dog card */
+                                <div style={{ backgroundColor: 'white', border: '1px solid #E8E2D9', borderRadius: 16, padding: 16 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    {b.dogPhotoUrl ? (
+                                      <img src={b.dogPhotoUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
+                                    ) : (
+                                      <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <PawDark size={22} />
+                                      </div>
+                                    )}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <p style={{ fontSize: 16, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                      <p style={{ fontSize: 13, color: '#8A7E72', fontFamily: FONT, margin: 0 }}>
+                                        {b.ownerName}{b.ownerAddress ? ` · ${b.ownerAddress}` : ''}
+                                      </p>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                                      <button
+                                        onClick={() => confirmDropoff(b.id)}
+                                        disabled={!!busy}
+                                        style={{ backgroundColor: '#E8F0E5', color: '#26452B', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
+                                      >
+                                        {busy === b.id ? '…' : 'Drop-off'}
+                                      </button>
+                                      <div
+                                        {...(provided.dragHandleProps ?? {})}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, cursor: 'grab' }}
+                                      >
+                                        <DragHandleIcon />
+                                      </div>
                                     </div>
                                   </div>
+                                  <NotifRow
+                                    booking={b}
+                                    sentKeys={sentNotifs[`${b.id}:dropoff`] ?? []}
+                                    busyKey={notifBusy[b.id] ?? null}
+                                    onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'dropoff')}
+                                    dark={false}
+                                  />
                                 </div>
-                                <NotifRow
-                                  booking={b}
-                                  sentKeys={sentNotifs[`${b.id}:dropoff`] ?? []}
-                                  busyKey={notifBusy[b.id] ?? null}
-                                  onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'dropoff')}
-                                  dark={false}
-                                />
+                              )
+                            })() : (
+                              /* Regular multi-dog group */
+                              <div style={{ borderRadius: 16, overflow: 'hidden', borderTop: '1px solid #C8DEC4', borderRight: '1px solid #C8DEC4', borderBottom: '1px solid #C8DEC4', borderLeft: '3px solid #4D6B46' }}>
+                                <div style={{ backgroundColor: '#E8F0E5', padding: '10px 14px 10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <p style={{ fontSize: 13, fontWeight: 700, color: '#26452B', fontFamily: FONT, margin: 0 }}>{group.ownerName}</p>
+                                    {group.ownerAddress && <p style={{ fontSize: 12, color: '#4D6B46', fontFamily: FONT, margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.ownerAddress}</p>}
+                                  </div>
+                                  <div
+                                    {...(provided.dragHandleProps ?? {})}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, flexShrink: 0, cursor: 'grab' }}
+                                  >
+                                    <DragHandleIcon />
+                                  </div>
+                                </div>
+                                {group.bookings.map((b) => (
+                                  <div key={b.id} style={{ backgroundColor: 'white', borderTop: '1px solid #E8E2D9', padding: 14 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                      {b.dogPhotoUrl ? (
+                                        <img src={b.dogPhotoUrl} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '2px solid #26452B', flexShrink: 0 }} />
+                                      ) : (
+                                        <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#EEE9E0', border: '2px solid #26452B', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                          <PawDark size={20} />
+                                        </div>
+                                      )}
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <p style={{ fontSize: 15, fontWeight: 700, color: '#3B2A1F', fontFamily: FONT, margin: '0 0 2px' }}>{b.dogName}</p>
+                                        {b.dropoffMethod && (
+                                          <span style={{ backgroundColor: '#EEE9E0', color: '#3B2A1F', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontFamily: FONT }}>
+                                            {b.dropoffMethod}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <button
+                                        onClick={() => confirmDropoff(b.id)}
+                                        disabled={!!busy}
+                                        style={{ backgroundColor: '#E8F0E5', color: '#26452B', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, fontFamily: FONT, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1, flexShrink: 0 }}
+                                      >
+                                        {busy === b.id ? '…' : 'Drop-off'}
+                                      </button>
+                                    </div>
+                                    <NotifRow
+                                      booking={b}
+                                      sentKeys={sentNotifs[`${b.id}:dropoff`] ?? []}
+                                      busyKey={notifBusy[b.id] ?? null}
+                                      onSend={(key, msg) => sendNotif(b.id, key, b.ownerPhone!, msg, 'dropoff')}
+                                      dark={false}
+                                    />
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
