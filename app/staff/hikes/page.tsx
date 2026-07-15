@@ -7,6 +7,36 @@ import { getUpcomingHikeSummaries, type HikeSummary } from '@/lib/adminData'
 import { formatFull, todayIso } from '@/lib/booking'
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
+const PAST_PAGE_SIZE = 30
+
+async function fetchPhotosByDay(dayIds: string[]): Promise<Record<string, string[]>> {
+  if (!dayIds.length) return {}
+  const { data: bookingRows } = await supabase
+    .from('bookings')
+    .select('hike_day_id, dog_id')
+    .in('hike_day_id', dayIds)
+    .eq('status', 'confirmed')
+  const dogIds = [...new Set((bookingRows ?? []).map((b: { dog_id: string }) => b.dog_id))]
+  if (!dogIds.length) return {}
+  const { data: dogRows } = await supabase
+    .from('dogs')
+    .select('id, photo_url')
+    .in('id', dogIds)
+    .not('photo_url', 'is', null)
+  const photoByDogId: Record<string, string> = {}
+  for (const d of (dogRows ?? []) as { id: string; photo_url: string | null }[]) {
+    if (d.photo_url) photoByDogId[d.id] = d.photo_url
+  }
+  const result: Record<string, string[]> = {}
+  for (const b of (bookingRows ?? []) as { hike_day_id: string; dog_id: string }[]) {
+    const photo = photoByDogId[b.dog_id]
+    if (photo) {
+      if (!result[b.hike_day_id]) result[b.hike_day_id] = []
+      if (result[b.hike_day_id].length < 3) result[b.hike_day_id].push(photo)
+    }
+  }
+  return result
+}
 
 function BackArrow() {
   return (
@@ -47,6 +77,9 @@ export default function HikesPage() {
   const [pastPhotosByDay, setPastPhotosByDay] = useState<Record<string, string[]>>({})
   const [pastLoading, setPastLoading] = useState(false)
   const [pastLoaded, setPastLoaded] = useState(false)
+  const [pastOffset, setPastOffset] = useState(0)
+  const [pastHasMore, setPastHasMore] = useState(false)
+  const [pastLoadingMore, setPastLoadingMore] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -110,7 +143,7 @@ export default function HikesPage() {
       .select('id, date, destination_override, status')
       .lt('date', todayIso())
       .order('date', { ascending: false })
-      .limit(10)
+      .range(0, PAST_PAGE_SIZE - 1)
 
     const days = (pastDays ?? []) as Array<{ id: string; date: string; destination_override: string | null; status: string }>
 
@@ -120,49 +153,56 @@ export default function HikesPage() {
       countById[r.hike_day_id] = r.confirmed
     }
 
-    const summaries: HikeSummary[] = days.map(d => ({
+    setPastHikes(days.map(d => ({
       date: d.date,
       hikeDayId: d.id,
       destination: d.destination_override,
       dogCount: countById[d.id] ?? 0,
-    }))
-    setPastHikes(summaries)
+    })))
+    setPastHasMore(days.length === PAST_PAGE_SIZE)
+    setPastOffset(PAST_PAGE_SIZE)
 
-    if (days.length > 0) {
-      const dayIds = days.map(d => d.id)
-      const { data: bookingRows } = await supabase
-        .from('bookings')
-        .select('hike_day_id, dog_id')
-        .in('hike_day_id', dayIds)
-        .eq('status', 'confirmed')
-
-      const dogIds = [...new Set((bookingRows ?? []).map((b: { dog_id: string }) => b.dog_id))]
-      if (dogIds.length > 0) {
-        const { data: dogRows } = await supabase
-          .from('dogs')
-          .select('id, photo_url')
-          .in('id', dogIds)
-          .not('photo_url', 'is', null)
-
-        const photoByDogId: Record<string, string> = {}
-        for (const d of (dogRows ?? []) as { id: string; photo_url: string | null }[]) {
-          if (d.photo_url) photoByDogId[d.id] = d.photo_url
-        }
-
-        const result: Record<string, string[]> = {}
-        for (const b of (bookingRows ?? []) as { hike_day_id: string; dog_id: string }[]) {
-          const photo = photoByDogId[b.dog_id]
-          if (photo) {
-            if (!result[b.hike_day_id]) result[b.hike_day_id] = []
-            if (result[b.hike_day_id].length < 3) result[b.hike_day_id].push(photo)
-          }
-        }
-        setPastPhotosByDay(result)
-      }
-    }
+    const photos = await fetchPhotosByDay(days.map(d => d.id))
+    setPastPhotosByDay(photos)
 
     setPastLoaded(true)
     setPastLoading(false)
+  }
+
+  async function loadMorePastHikes() {
+    if (pastLoadingMore) return
+    setPastLoadingMore(true)
+
+    const { data: pastDays } = await supabase
+      .from('hike_days')
+      .select('id, date, destination_override, status')
+      .lt('date', todayIso())
+      .order('date', { ascending: false })
+      .range(pastOffset, pastOffset + PAST_PAGE_SIZE - 1)
+
+    const days = (pastDays ?? []) as Array<{ id: string; date: string; destination_override: string | null; status: string }>
+
+    if (days.length > 0) {
+      const { data: countRows } = await supabase.rpc('hike_day_booked_counts')
+      const countById: Record<string, number> = {}
+      for (const r of (countRows ?? []) as { hike_day_id: string; confirmed: number }[]) {
+        countById[r.hike_day_id] = r.confirmed
+      }
+
+      setPastHikes(prev => [...prev, ...days.map(d => ({
+        date: d.date,
+        hikeDayId: d.id,
+        destination: d.destination_override,
+        dogCount: countById[d.id] ?? 0,
+      }))])
+      setPastOffset(prev => prev + PAST_PAGE_SIZE)
+
+      const photos = await fetchPhotosByDay(days.map(d => d.id))
+      setPastPhotosByDay(prev => ({ ...prev, ...photos }))
+    }
+
+    setPastHasMore(days.length === PAST_PAGE_SIZE)
+    setPastLoadingMore(false)
   }
 
   if (!ready) {
@@ -388,6 +428,15 @@ export default function HikesPage() {
                     </button>
                   )
                 })}
+                {pastHasMore && (
+                  <button
+                    onClick={loadMorePastHikes}
+                    disabled={pastLoadingMore}
+                    style={{ width: '100%', backgroundColor: 'white', border: '1px solid #E8E2D9', color: '#3B2A1F', borderRadius: 12, padding: '12px 16px', fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: pastLoadingMore ? 'not-allowed' : 'pointer', marginTop: 4, opacity: pastLoadingMore ? 0.6 : 1 }}
+                  >
+                    {pastLoadingMore ? 'Loading…' : 'Load more past hikes'}
+                  </button>
+                )}
               </div>
             )}
           </div>
