@@ -21,6 +21,7 @@ type BookingCard = {
   droppedOffAt: string | null
 }
 type DogPackSummary = { dogId: string; dogName: string; total: number; soonestExpiry: string | null }
+type NotifItem = { id: string; messageType: string; bookingId: string | null; createdAt: string }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -38,6 +39,38 @@ const T = {
 } as const
 
 const FONT = "'Noto Sans', system-ui, sans-serif"
+
+const NOTIF_MESSAGES: Record<string, string> = {
+  pickups_starting: 'Pickups are starting — please be ready outside!',
+  dropoffs_starting: 'Your dog is on the way home! 🐾',
+  thirty_min: "We're about 30 minutes away 🐾",
+  fifteen_min: 'About 15 minutes away 🐾',
+  five_min: 'Almost there — 5 minutes! 🐾',
+  arrived: "We've arrived! Please come get your dog 🐾",
+}
+
+function fmtNotifTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+function playBeep() {
+  try {
+    const ctx = new AudioContext()
+    const beep = (t: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.3, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15)
+      osc.start(t)
+      osc.stop(t + 0.15)
+    }
+    beep(ctx.currentTime)
+    beep(ctx.currentTime + 0.2)
+  } catch { /* audio not supported */ }
+}
 
 function greetingText(firstName: string) {
   const h = new Date().getHours()
@@ -119,6 +152,9 @@ export default function ClientHome() {
   const [pastOpen, setPastOpen] = useState(false)
   const [photoIndicatorDays, setPhotoIndicatorDays] = useState<Set<string>>(new Set())
   const [dogPackCredits, setDogPackCredits] = useState<DogPackSummary[]>([])
+  const [todayNotifs, setTodayNotifs] = useState<NotifItem[]>([])
+  const [banner, setBanner] = useState<NotifItem | null>(null)
+  const [todayHikeDayId, setTodayHikeDayId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -186,6 +222,23 @@ export default function ClientHome() {
         upcomingList.sort((a, b) => a.date.localeCompare(b.date))
         pastList.sort((a, b) => b.date.localeCompare(a.date))
 
+        const todayHikeId = upcomingList.find(u => u.date === today)?.hikeDayId ?? null
+        if (todayHikeId) {
+          setTodayHikeDayId(todayHikeId)
+          const { data: notifRows } = await supabase
+            .from('notifications')
+            .select('id, message_type, booking_id, created_at')
+            .eq('hike_day_id', todayHikeId)
+            .order('created_at', { ascending: false })
+            .limit(5)
+          setTodayNotifs((notifRows ?? []).map((r: { id: string; message_type: string; booking_id: string | null; created_at: string }) => ({
+            id: r.id,
+            messageType: r.message_type,
+            bookingId: r.booking_id,
+            createdAt: r.created_at,
+          })))
+        }
+
         const pastDayIds = [...new Set(pastList.map(p => p.hikeDayId))]
         const dayIdsWithPhotos = new Set<string>()
         if (pastDayIds.length > 0) {
@@ -227,6 +280,35 @@ export default function ClientHome() {
     load()
   }, [router])
 
+  useEffect(() => {
+    if (!todayHikeDayId) return
+    const channel = supabase
+      .channel(`notifs:${todayHikeDayId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `hike_day_id=eq.${todayHikeDayId}`,
+        },
+        (payload) => {
+          const row = payload.new as { id: string; message_type: string; booking_id: string | null; created_at: string }
+          const item: NotifItem = {
+            id: row.id,
+            messageType: row.message_type,
+            bookingId: row.booking_id,
+            createdAt: row.created_at,
+          }
+          setTodayNotifs(prev => [item, ...prev].slice(0, 5))
+          setBanner(item)
+          playBeep()
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [todayHikeDayId])
+
   async function signOut() {
     await supabase.auth.signOut()
     router.push('/')
@@ -248,6 +330,24 @@ export default function ClientHome() {
 
   return (
     <main style={{ backgroundColor: T.bg, fontFamily: FONT }} className="min-h-screen px-5 pb-12">
+
+      {/* ── In-app notification banner ── */}
+      {banner && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, backgroundColor: T.forest, padding: '48px 16px 16px', boxShadow: '0 4px 20px rgba(0,0,0,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, maxWidth: 390, margin: '0 auto' }}>
+            <p style={{ flex: 1, color: 'white', fontSize: 15, fontWeight: 600, fontFamily: FONT, margin: 0, lineHeight: 1.4 }}>
+              {NOTIF_MESSAGES[banner.messageType] ?? banner.messageType}
+            </p>
+            <button
+              onClick={() => setBanner(null)}
+              style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-sm mx-auto">
 
         {/* ── Greeting header ── */}
@@ -448,6 +548,25 @@ export default function ClientHome() {
                     </p>
                   )}
                 </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Today's updates ── */}
+        {todayNotifs.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <SectionHeader title="Today's updates" />
+            <div className="space-y-2">
+              {todayNotifs.map(n => (
+                <div key={n.id} style={{ backgroundColor: '#fff', border: `1px solid ${T.cardBorder}`, borderRadius: 12, padding: '12px 14px' }}>
+                  <p style={{ color: T.brown, fontSize: 14, fontFamily: FONT, margin: '0 0 3px', lineHeight: 1.4 }}>
+                    {NOTIF_MESSAGES[n.messageType] ?? n.messageType}
+                  </p>
+                  <p style={{ color: T.muted, fontSize: 12, fontFamily: FONT, margin: 0 }}>
+                    {fmtNotifTime(n.createdAt)}
+                  </p>
+                </div>
               ))}
             </div>
           </div>

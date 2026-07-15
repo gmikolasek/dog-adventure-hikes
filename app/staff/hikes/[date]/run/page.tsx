@@ -16,6 +16,13 @@ const NOTIF_BUTTONS = [
   { key: 'arrived', label: 'Arrived',    message: 'We have arrived! Please come take your dog. 🐾' },
 ] as const
 
+const NOTIF_KEY_TO_TYPE: Record<string, string> = {
+  '30min':   'thirty_min',
+  '15min':   'fifteen_min',
+  '5min':    'five_min',
+  'arrived': 'arrived',
+}
+
 // ---- Icons ------------------------------------------------------------------
 
 function BackArrow() {
@@ -194,6 +201,10 @@ export default function RunPage() {
   // Per-dog notification state: bookingId → array of sent button keys
   const [sentNotifs, setSentNotifs] = useState<Record<string, string[]>>({})
   const [notifBusy, setNotifBusy] = useState<Record<string, string | null>>({})
+
+  // Broadcast in-app notification state
+  const [broadcastSent, setBroadcastSent] = useState<Record<string, boolean>>({})
+  const [broadcastBusy, setBroadcastBusy] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -415,8 +426,8 @@ export default function RunPage() {
 
   async function sendNotif(bookingId: string, key: string, phone: string, message: string, phase: 'pickup' | 'dropoff') {
     setNotifBusy(prev => ({ ...prev, [bookingId]: key }))
+    const { data: { session } } = await supabase.auth.getSession()
     try {
-      const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         await fetch('/api/notify', {
           method: 'POST',
@@ -428,6 +439,15 @@ export default function RunPage() {
         })
       }
     } catch { /* mark sent regardless */ }
+    const msgType = NOTIF_KEY_TO_TYPE[key]
+    if (session && hikeDayId && msgType) {
+      void supabase.from('notifications').insert({
+        hike_day_id: hikeDayId,
+        booking_id: bookingId,
+        sender_id: session.user.id,
+        message_type: msgType,
+      })
+    }
     const scopedKey = `${bookingId}:${phase}`
     setSentNotifs(prev => ({ ...prev, [scopedKey]: [...(prev[scopedKey] ?? []), key] }))
     setNotifBusy(prev => ({ ...prev, [bookingId]: null }))
@@ -460,6 +480,22 @@ export default function RunPage() {
 
     setHikingFinishedCount(phones.length)
     setHikingFinishedBusy(false)
+  }
+
+  async function sendBroadcast(messageType: 'pickups_starting' | 'dropoffs_starting') {
+    if (broadcastBusy[messageType] || broadcastSent[messageType]) return
+    setBroadcastBusy(prev => ({ ...prev, [messageType]: true }))
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session && hikeDayId) {
+      await supabase.from('notifications').insert({
+        hike_day_id: hikeDayId,
+        booking_id: null,
+        sender_id: session.user.id,
+        message_type: messageType,
+      })
+    }
+    setBroadcastSent(prev => ({ ...prev, [messageType]: true }))
+    setBroadcastBusy(prev => ({ ...prev, [messageType]: false }))
   }
 
   async function handleAddDogSearch(q: string) {
@@ -784,6 +820,21 @@ export default function RunPage() {
       {/* ══ PICKUP MODE ══ */}
       {mode === 'pickup' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 40px' }}>
+
+          {/* Broadcast button */}
+          <div style={{ marginBottom: 12 }}>
+            {broadcastSent['pickups_starting'] ? (
+              <p style={{ fontSize: 13, color: '#4D6B46', fontFamily: FONT, textAlign: 'center', margin: 0 }}>📣 All owners notified ✓</p>
+            ) : (
+              <button
+                onClick={() => sendBroadcast('pickups_starting')}
+                disabled={!!broadcastBusy['pickups_starting']}
+                style={{ width: '100%', backgroundColor: '#E8F0E5', color: '#26452B', border: 'none', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', opacity: broadcastBusy['pickups_starting'] ? 0.6 : 1 }}
+              >
+                {broadcastBusy['pickups_starting'] ? 'Sending…' : '📣 Notify all — Pickups starting soon'}
+              </button>
+            )}
+          </div>
 
           {pendingDogs.length > 1 && (
             <p style={{ fontSize: 12, color: '#8A7E72', fontStyle: 'italic', fontFamily: FONT, textAlign: 'right', marginBottom: 8 }}>
@@ -1113,6 +1164,23 @@ export default function RunPage() {
               </div>
               <p style={{ fontSize: 18, fontWeight: 700, color: '#26452B', fontFamily: FONT, margin: '0 0 4px' }}>All dogs home!</p>
               <p style={{ fontSize: 14, color: '#4D6B46', fontFamily: FONT, margin: 0 }}>Great hike today.</p>
+            </div>
+          )}
+
+          {/* Broadcast button */}
+          {!allDroppedOff && (
+            <div style={{ marginBottom: 12 }}>
+              {broadcastSent['dropoffs_starting'] ? (
+                <p style={{ fontSize: 13, color: '#4D6B46', fontFamily: FONT, textAlign: 'center', margin: 0 }}>📣 All owners notified ✓</p>
+              ) : (
+                <button
+                  onClick={() => sendBroadcast('dropoffs_starting')}
+                  disabled={!!broadcastBusy['dropoffs_starting']}
+                  style={{ width: '100%', backgroundColor: '#E8F0E5', color: '#26452B', border: 'none', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', opacity: broadcastBusy['dropoffs_starting'] ? 0.6 : 1 }}
+                >
+                  {broadcastBusy['dropoffs_starting'] ? 'Sending…' : '📣 Notify all — Drop-offs starting soon'}
+                </button>
+              )}
             </div>
           )}
 
