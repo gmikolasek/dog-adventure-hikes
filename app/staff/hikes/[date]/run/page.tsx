@@ -427,6 +427,8 @@ export default function RunPage() {
   async function sendNotif(bookingId: string, key: string, phone: string, message: string, phase: 'pickup' | 'dropoff') {
     setNotifBusy(prev => ({ ...prev, [bookingId]: key }))
     const { data: { session } } = await supabase.auth.getSession()
+
+    // Send WhatsApp notification
     try {
       if (session) {
         await fetch('/api/notify', {
@@ -438,19 +440,44 @@ export default function RunPage() {
           body: JSON.stringify({ phone, message, hikeDayId }),
         })
       }
-    } catch { /* mark sent regardless */ }
+    } catch { /* continue regardless */ }
+
+    // Insert in-app notification and await the result
     const msgType = NOTIF_KEY_TO_TYPE[key]
+    let insertOk = false
     if (session && hikeDayId && msgType) {
-      void supabase.from('notifications').insert({
+      const { error } = await supabase.from('notifications').insert({
         hike_day_id: hikeDayId,
         booking_id: bookingId,
         sender_id: session.user.id,
         message_type: msgType,
       })
+      if (error) {
+        console.error('[sendNotif] notifications insert failed:', { key, bookingId, msgType, error })
+      } else {
+        insertOk = true
+      }
     }
-    const scopedKey = `${bookingId}:${phase}`
-    setSentNotifs(prev => ({ ...prev, [scopedKey]: [...(prev[scopedKey] ?? []), key] }))
+
     setNotifBusy(prev => ({ ...prev, [bookingId]: null }))
+
+    if (insertOk) {
+      const scopedKey = `${bookingId}:${phase}`
+      setSentNotifs(prev => ({ ...prev, [scopedKey]: [...(prev[scopedKey] ?? []), key] }))
+      // Clear the checkmark after 2s so the button is re-tappable if needed
+      setTimeout(() => {
+        setSentNotifs(prev => {
+          const existing = prev[scopedKey] ?? []
+          const filtered = existing.filter(k => k !== key)
+          if (filtered.length === 0) {
+            const n = { ...prev }
+            delete n[scopedKey]
+            return n
+          }
+          return { ...prev, [scopedKey]: filtered }
+        })
+      }, 2000)
+    }
   }
 
   async function sendHikingFinished() {
