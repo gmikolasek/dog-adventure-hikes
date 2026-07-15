@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getUserState, type Dog, type Profile } from '@/lib/userState'
@@ -155,6 +155,7 @@ export default function ClientHome() {
   const [todayNotifs, setTodayNotifs] = useState<NotifItem[]>([])
   const [banner, setBanner] = useState<NotifItem | null>(null)
   const [todayHikeDayId, setTodayHikeDayId] = useState<string | null>(null)
+  const todayBookingIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     async function load() {
@@ -225,6 +226,9 @@ export default function ClientHome() {
         const todayHikeId = upcomingList.find(u => u.date === today)?.hikeDayId ?? null
         if (todayHikeId) {
           setTodayHikeDayId(todayHikeId)
+          todayBookingIdsRef.current = new Set(
+            upcomingList.filter(u => u.hikeDayId === todayHikeId).map(u => u.id)
+          )
           const { data: notifRows } = await supabase
             .from('notifications')
             .select('id, message_type, booking_id, created_at')
@@ -294,6 +298,8 @@ export default function ClientHome() {
         },
         (payload) => {
           const row = payload.new as { id: string; message_type: string; booking_id: string | null; created_at: string }
+          // Accept broadcasts (booking_id null) or notifications for this client's own bookings
+          if (row.booking_id !== null && !todayBookingIdsRef.current.has(row.booking_id)) return
           const item: NotifItem = {
             id: row.id,
             messageType: row.message_type,
