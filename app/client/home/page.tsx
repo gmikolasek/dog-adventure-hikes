@@ -53,9 +53,8 @@ function fmtNotifTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-function playBeep() {
+function playBeep(ctx: AudioContext) {
   try {
-    const ctx = new AudioContext()
     const beep = (t: number) => {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
@@ -156,6 +155,27 @@ export default function ClientHome() {
   const [banner, setBanner] = useState<NotifItem | null>(null)
   const [todayHikeDayId, setTodayHikeDayId] = useState<string | null>(null)
   const todayBookingIdsRef = useRef<Set<string>>(new Set())
+  const audioCtxRef = useRef<AudioContext | null>(null)
+
+  // Initialize AudioContext on first user gesture (browsers block audio before interaction)
+  useEffect(() => {
+    function initAudio() {
+      if (audioCtxRef.current) return
+      try {
+        const ctx = new AudioContext()
+        audioCtxRef.current = ctx
+        if (ctx.state === 'suspended') void ctx.resume()
+      } catch { /* audio not supported */ }
+      document.removeEventListener('click', initAudio)
+      document.removeEventListener('touchstart', initAudio)
+    }
+    document.addEventListener('click', initAudio)
+    document.addEventListener('touchstart', initAudio)
+    return () => {
+      document.removeEventListener('click', initAudio)
+      document.removeEventListener('touchstart', initAudio)
+    }
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -308,7 +328,7 @@ export default function ClientHome() {
           }
           setTodayNotifs(prev => [item, ...prev].slice(0, 5))
           setBanner(item)
-          playBeep()
+          if (audioCtxRef.current) playBeep(audioCtxRef.current)
         }
       )
       .subscribe()
